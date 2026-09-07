@@ -7,5 +7,6 @@ authors = ["Miso Labs, Inc. (build@miso.network)"]
 [dependencies]
 miso = { git = "https://github.com/misofm/protocol.git", rev = "ffa0e38b8ba4815d81de1076101ea37d2c71c623" }
 hikida = { git = "https://github.com/unconfirmedlabs/hikida.git", rev = "4abe4c1ff482655693698fa6ab8a6e2b58f8c635" }
-royalty_pool = { git = "https://github.com/misofm/royalty-pool.git", rev = "0b40a6f5d37c595d29acd7f6ebbee0a11177482f" }
+# TODO(release): re-pin to the pushed `exact-accounting` commits of misofm/royalty-pool (and routed-stake).
+royalty_pool = { local = "../../royalty-pool" }
 vault = { git = "https://github.com/misofm/vault.git", rev = "6b55f9fe8d89f7a7974cb843b10b9827fe13ef0f", modes = ["test"] }
