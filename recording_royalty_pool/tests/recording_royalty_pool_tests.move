@@ -5,7 +5,7 @@
 module recording_royalty_pool::recording_royalty_pool_tests;
 
 use hikida::hikida;
-use miso::recording::{Self, Recording, RecordingAdminCap};
+use musicos::recording::{Self, Recording, RecordingAdminCap};
 use recording_royalty_pool::recording_royalty_pool as action;
 use royalty_pool::pool::{Self, RoyaltyDepositedEvent, RoyaltyPool, RoyaltyPoolCreatedEvent};
 use royalty_pool::stake;

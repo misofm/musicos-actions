@@ -9,8 +9,8 @@
 module composition_routed_stake::composition_routed_stake;
 
 use hikida::hikida;
-use miso::composition::{Composition, CompositionAdminCap};
-use miso::recording::Recording;
+use musicos::composition::{Composition, CompositionAdminCap};
+use musicos::recording::Recording;
 use royalty_pool::pool::{Self, RoyaltyPool};
 use routed_stake::routed_stake::{Self, RoutedStake};
 use sui::balance::Balance;

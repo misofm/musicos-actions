@@ -5,9 +5,9 @@
 module release_revenue_distributor::release_revenue_distributor_tests;
 
 use hikida::hikida;
-use miso::release::{Self, Release, ReleaseAdminCap};
-use miso::test_helpers;
-use miso::track;
+use musicos::release::{Self, Release, ReleaseAdminCap};
+use musicos::test_helpers;
+use musicos::track;
 use release_revenue_distributor::release_revenue_distributor as action;
 use std::unit_test::{assert_eq, destroy};
 use sui::accumulator::AccumulatorRoot;

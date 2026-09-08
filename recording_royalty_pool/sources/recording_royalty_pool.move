@@ -1,14 +1,14 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Raw-cap, custody-agnostic royalty-pool actions for Miso Recordings.
+/// Raw-cap, custody-agnostic royalty-pool actions for musicos Recordings.
 ///
 /// Every mutating action requires the Recording's own admin capability. The
 /// canonical pool remains derived from the Recording and is returned unshared.
 module recording_royalty_pool::recording_royalty_pool;
 
 use hikida::hikida;
-use miso::recording::{Recording, RecordingAdminCap};
+use musicos::recording::{Recording, RecordingAdminCap};
 use royalty_pool::pool::{Self, RoyaltyPool};
 use sui::coin::Coin;
 use sui::transfer::Receiving;

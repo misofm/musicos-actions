@@ -9,7 +9,7 @@
 module release_revenue_distributor::release_revenue_distributor;
 
 use hikida::hikida;
-use miso::release::{Release, ReleaseAdminCap};
+use musicos::release::{Release, ReleaseAdminCap};
 use sui::accumulator::AccumulatorRoot;
 use sui::balance::{Self, Balance};
 use sui::coin::Coin;

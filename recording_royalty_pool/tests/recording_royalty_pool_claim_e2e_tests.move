@@ -8,7 +8,7 @@
 #[test_only]
 module recording_royalty_pool::recording_royalty_pool_claim_e2e_tests;
 
-use miso::recording::{Self, Recording, RecordingAdminCap};
+use musicos::recording::{Self, Recording, RecordingAdminCap};
 use recording_royalty_pool::recording_royalty_pool as action;
 use royalty_pool::pool::RoyaltyPool;
 use royalty_pool::stake::{Self, Stake};

@@ -6,8 +6,8 @@ module composition_routed_stake::composition_routed_stake_tests;
 
 use composition_routed_stake::composition_routed_stake as action;
 use hikida::hikida;
-use miso::composition::{Self, Composition, CompositionAdminCap};
-use miso::recording::{Self, Recording, RecordingAdminCap};
+use musicos::composition::{Self, Composition, CompositionAdminCap};
+use musicos::recording::{Self, Recording, RecordingAdminCap};
 use royalty_pool::pool::{Self, RoyaltyPool};
 use royalty_pool::stake::{Self, Stake};
 use routed_stake::routed_stake::{Self, RoutedStake};

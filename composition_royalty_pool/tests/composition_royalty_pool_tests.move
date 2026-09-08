@@ -6,7 +6,7 @@ module composition_royalty_pool::composition_royalty_pool_tests;
 
 use composition_royalty_pool::composition_royalty_pool as action;
 use hikida::hikida;
-use miso::composition::{Self, Composition, CompositionAdminCap};
+use musicos::composition::{Self, Composition, CompositionAdminCap};
 use royalty_pool::pool::{Self, RoyaltyDepositedEvent, RoyaltyPool, RoyaltyPoolCreatedEvent};
 use royalty_pool::stake;
 use std::unit_test::{assert_eq, destroy};

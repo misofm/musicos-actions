@@ -1,7 +1,7 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Raw-cap, custody-agnostic royalty-pool actions for Miso Compositions.
+/// Raw-cap, custody-agnostic royalty-pool actions for musicos Compositions.
 ///
 /// Every mutating action requires the Composition's own admin capability.
 /// The canonical pool remains derived from the Composition, and callers
@@ -9,7 +9,7 @@
 module composition_royalty_pool::composition_royalty_pool;
 
 use hikida::hikida;
-use miso::composition::{Composition, CompositionAdminCap};
+use musicos::composition::{Composition, CompositionAdminCap};
 use royalty_pool::pool::{Self, RoyaltyPool};
 use sui::coin::Coin;
 use sui::transfer::Receiving;

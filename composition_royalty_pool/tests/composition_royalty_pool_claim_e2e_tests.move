@@ -10,7 +10,7 @@
 module composition_royalty_pool::composition_royalty_pool_claim_e2e_tests;
 
 use composition_royalty_pool::composition_royalty_pool as action;
-use miso::composition::{Self, Composition, CompositionAdminCap};
+use musicos::composition::{Self, Composition, CompositionAdminCap};
 use royalty_pool::pool::RoyaltyPool;
 use royalty_pool::stake::{Self, Stake};
 use std::unit_test::{assert_eq, destroy};
