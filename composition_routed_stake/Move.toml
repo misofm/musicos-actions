@@ -5,8 +5,8 @@ license = "Apache 2.0"
 authors = ["Miso Labs, Inc. (build@miso.network)"]
 
 [dependencies]
-miso = { git = "https://github.com/misofm/protocol.git", rev = "ffa0e38b8ba4815d81de1076101ea37d2c71c623" }
+miso = { git = "https://github.com/misofm/protocol.git", rev = "09f0dc699a112c37d8da8a765596cc1ed623fe79" }
 hikida = { git = "https://github.com/unconfirmedlabs/hikida.git", rev = "4abe4c1ff482655693698fa6ab8a6e2b58f8c635" }
-royalty_pool = { git = "https://github.com/misofm/royalty-pool.git", rev = "a5407e77237052d02f8d664cba405c692e7fdae5" }
-routed_stake = { git = "https://github.com/misofm/routed-stake.git", rev = "36dbfa1edb6560fd93b82d32144f323bea5a11ce" }
-vault = { git = "https://github.com/misofm/vault.git", rev = "6b55f9fe8d89f7a7974cb843b10b9827fe13ef0f", modes = ["test"] }
+royalty_pool = { git = "https://github.com/misofm/royalty-pool.git", rev = "de389b508708fb5c7a14ed3548e871626c844bdc" }
+routed_stake = { git = "https://github.com/misofm/routed-stake.git", rev = "599aff86473b482c04ef4baef2ddc7869603113a" }
+vault = { git = "https://github.com/misofm/vault.git", rev = "8a4d1c0edbc120efc642a682308662e2a0b7f407", modes = ["test"] }
