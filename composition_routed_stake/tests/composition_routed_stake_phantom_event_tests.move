@@ -18,6 +18,7 @@ public struct C1() has drop;
 public struct C2() has drop;
 public struct U1() has drop;
 public struct U2() has drop;
+public struct U3() has drop;
 
 fun fixture<RecordingShare, CompositionShare>(
     ctx: &mut TxContext,
@@ -119,6 +120,19 @@ fun assert_restaked<RecordingShare, CompositionShare>(
     assert_eq!(c, composition_id); assert_eq!(cap, cap_id); assert_eq!(routed, routed_id);
     assert_eq!(stake, stake_id); assert_eq!(tx_sender, sender);
     assert_eq!(value, principal); assert_eq!(registrations, 0);
+}
+
+fun assert_zero_cross_phantom_streams() {
+    // R2,C2 has no event: changing only RecordingShare from C's positive
+    // stream or only CompositionShare from B's positive stream is zero.
+    assert_eq!(event::events_by_type<action::CompositionRoutedStakeCreatedEvent<R2, C2>>().length(), 0);
+    assert_eq!(event::events_by_type<action::CompositionRoutedStakeRegisteredEvent<R2, C2, U1>>().length(), 0);
+    assert_eq!(event::events_by_type<action::CompositionRoutedStakeUnregisteredEvent<R2, C2, U1>>().length(), 0);
+    assert_eq!(event::events_by_type<action::CompositionRoutedStakeUnstakedEvent<R2, C2>>().length(), 0);
+    assert_eq!(event::events_by_type<action::CompositionRoutedStakeRestakedEvent<R2, C2>>().length(), 0);
+    // Currency is an independent phantom too; U3 has no positive event.
+    assert_eq!(event::events_by_type<action::CompositionRoutedStakeRegisteredEvent<R1, C1, U3>>().length(), 0);
+    assert_eq!(event::events_by_type<action::CompositionRoutedStakeUnregisteredEvent<R1, C1, U3>>().length(), 0);
 }
 
 #[test]
@@ -227,4 +241,5 @@ fun all_event_families_keep_recording_composition_and_currency_phantoms_separate
     destroy(a_u1); destroy(a_u2); destroy(b_u1); destroy(c_u1);
     destroy(a_recording); destroy(a_recording_cap); destroy(b_recording); destroy(b_recording_cap); destroy(c_recording); destroy(c_recording_cap);
     destroy(a); destroy(a_cap); destroy(b); destroy(b_cap); destroy(c); destroy(c_cap);
+    assert_zero_cross_phantom_streams();
 }
