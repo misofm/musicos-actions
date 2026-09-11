@@ -16,7 +16,7 @@ use sui::coin::Coin;
 use sui::event::emit;
 use sui::transfer::Receiving;
 
-/// Emitted after selected coins are received into the Release accumulator.
+/// Emitted after selected Release-owned coins are received and merged into a balance.
 public struct ReleaseCoinsReceivedEvent<phantom Currency> has copy, drop {
     release_id: address,
     admin_cap_id: address,
