@@ -41,6 +41,9 @@ fun received_coins_are_combined_split_and_fully_reported() {
     let mut scenario = test_scenario::begin(@0xA);
     let (mut release, admin_cap, recording_a, recording_b) = fixture(scenario.ctx());
     let release_id = object::id(&release);
+    let release_address = release_id.to_address();
+    let admin_cap_id = object::id(&admin_cap).to_address();
+    let composition_id = release.tracks()[0].composition_id().to_address();
     let coin_a = coin::from_balance(balance::create_for_testing<CURRENCY>(6_000), scenario.ctx());
     let coin_b = coin::from_balance(balance::create_for_testing<CURRENCY>(4_001), scenario.ctx());
     let coin_a_id = object::id(&coin_a);
@@ -58,27 +61,43 @@ fun received_coins_are_combined_split_and_fully_reported() {
         ],
     );
 
+    let sources = event::events_by_type<action::ReleaseCoinsReceivedEvent<CURRENCY>>();
+    assert_eq!(sources.length(), 1);
+    let (source_release, source_admin, source_coin_ids, source_amount) =
+        action::coins_received_event_fields(&sources[0]);
+    assert_eq!(source_release, release_address);
+    assert_eq!(source_admin, admin_cap_id);
+    assert_eq!(source_coin_ids, vector[coin_a_id.to_address(), coin_b_id.to_address()]);
+    assert_eq!(source_amount, 10_001);
+
     let track_events =
         event::events_by_type<action::ReleaseTrackRevenueDistributedEvent<CURRENCY>>();
     assert_eq!(track_events.length(), 2);
-    let (event_release_a, index_a, event_recording_a, amount_a) =
+    let (event_release_a, index_a, event_composition_a, event_recording_a, split_a, input_a, amount_a) =
         action::track_event_fields(&track_events[0]);
-    let (event_release_b, index_b, event_recording_b, amount_b) =
+    let (event_release_b, index_b, event_composition_b, event_recording_b, split_b, input_b, amount_b) =
         action::track_event_fields(&track_events[1]);
-    assert_eq!(event_release_a, release_id);
-    assert_eq!(event_release_b, release_id);
+    assert_eq!(event_release_a, release_address);
+    assert_eq!(event_release_b, release_address);
     assert_eq!(index_a, 0);
     assert_eq!(index_b, 1);
-    assert_eq!(event_recording_a, recording_a);
-    assert_eq!(event_recording_b, recording_b);
+    assert_eq!(event_composition_a, composition_id);
+    assert_eq!(event_composition_b, composition_id);
+    assert_eq!(event_recording_a, recording_a.to_address());
+    assert_eq!(event_recording_b, recording_b.to_address());
+    assert_eq!(split_a, 6_000);
+    assert_eq!(split_b, 4_000);
+    assert_eq!(input_a, 10_001);
+    assert_eq!(input_b, 10_001);
     assert_eq!(amount_a, 6_000);
     assert_eq!(amount_b, 4_000);
 
     let summaries = event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>();
     assert_eq!(summaries.length(), 1);
-    let (event_release, input, distributed, remainder) =
+    let (event_release, track_count, input, distributed, remainder) =
         action::distribution_event_fields(&summaries[0]);
-    assert_eq!(event_release, release_id);
+    assert_eq!(event_release, release_address);
+    assert_eq!(track_count, 2);
     assert_eq!(input, 10_001);
     assert_eq!(distributed, 10_000);
     assert_eq!(remainder, 1);
@@ -93,6 +112,9 @@ fun zero_value_coin_emits_zero_track_and_summary_events() {
     let mut scenario = test_scenario::begin(@0xA);
     let (mut release, admin_cap, recording_a, recording_b) = fixture(scenario.ctx());
     let release_id = object::id(&release);
+    let release_address = release_id.to_address();
+    let admin_cap_id = object::id(&admin_cap).to_address();
+    let composition_id = release.tracks()[0].composition_id().to_address();
     let coin = coin::zero<CURRENCY>(scenario.ctx());
     let coin_id = object::id(&coin);
     transfer::public_transfer(coin, release_id.to_address());
@@ -103,22 +125,41 @@ fun zero_value_coin_emits_zero_track_and_summary_events() {
         &admin_cap,
         vector[test_scenario::receiving_ticket_by_id<Coin<CURRENCY>>(coin_id)],
     );
+    let sources = event::events_by_type<action::ReleaseCoinsReceivedEvent<CURRENCY>>();
+    assert_eq!(sources.length(), 1);
+    let (source_release, source_admin, source_coin_ids, source_amount) =
+        action::coins_received_event_fields(&sources[0]);
+    assert_eq!(source_release, release_address);
+    assert_eq!(source_admin, admin_cap_id);
+    assert_eq!(source_coin_ids, vector[coin_id.to_address()]);
+    assert_eq!(source_amount, 0);
+
     let tracks = event::events_by_type<action::ReleaseTrackRevenueDistributedEvent<CURRENCY>>();
     assert_eq!(tracks.length(), 2);
-    let (release_a, index_a, target_a, amount_a) = action::track_event_fields(&tracks[0]);
-    let (release_b, index_b, target_b, amount_b) = action::track_event_fields(&tracks[1]);
-    assert_eq!(release_a, release_id);
-    assert_eq!(release_b, release_id);
+    let (release_a, index_a, composition_a, target_a, split_a, input_a, amount_a) =
+        action::track_event_fields(&tracks[0]);
+    let (release_b, index_b, composition_b, target_b, split_b, input_b, amount_b) =
+        action::track_event_fields(&tracks[1]);
+    assert_eq!(release_a, release_address);
+    assert_eq!(release_b, release_address);
     assert_eq!(index_a, 0);
     assert_eq!(index_b, 1);
-    assert_eq!(target_a, recording_a);
-    assert_eq!(target_b, recording_b);
+    assert_eq!(composition_a, composition_id);
+    assert_eq!(composition_b, composition_id);
+    assert_eq!(target_a, recording_a.to_address());
+    assert_eq!(target_b, recording_b.to_address());
+    assert_eq!(split_a, 6_000);
+    assert_eq!(split_b, 4_000);
+    assert_eq!(input_a, 0);
+    assert_eq!(input_b, 0);
     assert_eq!(amount_a, 0);
     assert_eq!(amount_b, 0);
     let summaries = event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>();
-    let (summary_release, input, distributed, remainder) =
+    assert_eq!(summaries.length(), 1);
+    let (summary_release, track_count, input, distributed, remainder) =
         action::distribution_event_fields(&summaries[0]);
-    assert_eq!(summary_release, release_id);
+    assert_eq!(summary_release, release_address);
+    assert_eq!(track_count, 2);
     assert_eq!(input, 0);
     assert_eq!(distributed, 0);
     assert_eq!(remainder, 0);
@@ -164,6 +205,7 @@ fun settled_value_helper_distributes_full_amount_and_later_remainder() {
     let mut scenario = test_scenario::begin(@0xA);
     let (mut release, admin_cap, _recording_a, _recording_b) = fixture(scenario.ctx());
     let release_address = object::id(&release).to_address();
+    let admin_cap_id = object::id(&admin_cap).to_address();
     balance::create_for_testing<CURRENCY>(10_001).send_funds(release_address);
 
     scenario.next_tx(@0xB);
@@ -172,9 +214,17 @@ fun settled_value_helper_distributes_full_amount_and_later_remainder() {
         &admin_cap,
         10_001,
     );
+    let redeemed = event::events_by_type<action::ReleaseFundsRedeemedEvent<CURRENCY>>();
+    assert_eq!(redeemed.length(), 1);
+    let (first_source_release, first_source_admin, first_source_amount) =
+        action::funds_redeemed_event_fields(&redeemed[0]);
+    assert_eq!(first_source_release, release_address);
+    assert_eq!(first_source_admin, admin_cap_id);
+    assert_eq!(first_source_amount, 10_001);
     let summaries = event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>();
-    let (_, first_input, first_distributed, first_remainder) =
+    let (_, first_track_count, first_input, first_distributed, first_remainder) =
         action::distribution_event_fields(&summaries[0]);
+    assert_eq!(first_track_count, 2);
     assert_eq!(first_input, 10_001);
     assert_eq!(first_distributed, 10_000);
     assert_eq!(first_remainder, 1);
@@ -188,10 +238,18 @@ fun settled_value_helper_distributes_full_amount_and_later_remainder() {
         &admin_cap,
         10_000,
     );
+    let redeemed = event::events_by_type<action::ReleaseFundsRedeemedEvent<CURRENCY>>();
+    assert_eq!(redeemed.length(), 1);
+    let (second_source_release, second_source_admin, second_source_amount) =
+        action::funds_redeemed_event_fields(&redeemed[0]);
+    assert_eq!(second_source_release, release_address);
+    assert_eq!(second_source_admin, admin_cap_id);
+    assert_eq!(second_source_amount, 10_000);
     let summaries = event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>();
     assert_eq!(summaries.length(), 1);
-    let (_, second_input, second_distributed, second_remainder) =
+    let (_, second_track_count, second_input, second_distributed, second_remainder) =
         action::distribution_event_fields(&summaries[0]);
+    assert_eq!(second_track_count, 2);
     assert_eq!(second_input, 10_000);
     assert_eq!(second_distributed, 10_000);
     assert_eq!(second_remainder, 0);
@@ -268,6 +326,15 @@ fun redeem_all_is_an_idempotent_no_op_without_settled_funds() {
     let (mut release, admin_cap, _, _) = fixture(scenario.ctx());
     let root = scenario.take_shared<AccumulatorRoot>();
     action::redeem_all_and_distribute<CURRENCY>(&mut release, &admin_cap, &root);
+    action::redeem_all_and_distribute<CURRENCY>(&mut release, &admin_cap, &root);
+    assert_eq!(
+        event::events_by_type<action::ReleaseCoinsReceivedEvent<CURRENCY>>().length(),
+        0,
+    );
+    assert_eq!(
+        event::events_by_type<action::ReleaseFundsRedeemedEvent<CURRENCY>>().length(),
+        0,
+    );
     assert_eq!(
         event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>().length(),
         0,
