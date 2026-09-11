@@ -6,11 +6,13 @@ The adapter verifies the Recording belongs to the Composition, the routed stake 
 
 Successful actions append one adapter event after the unchanged dependency call succeeds. The events preserve every relevant identity and post-call snapshot while retaining the dependency events and their ordering:
 
-* `CompositionRoutedStakeCreatedEvent<RecordingShare, CompositionShare>` — 208-byte payload.
-* `CompositionRoutedStakeRegisteredEvent<RecordingShare, CompositionShare, Currency>` — 336-byte payload, including registration counts, pool shares, index, debt, carry and cumulative deposits.
-* `CompositionRoutedStakeUnregisteredEvent<RecordingShare, CompositionShare, Currency>` — 368-byte payload, including the removed debt and the forfeited scaled residue (`shares * index - debt`).
-* `CompositionRoutedStakeUnstakedEvent<RecordingShare, CompositionShare>` — 136-byte payload.
-* `CompositionRoutedStakeRestakedEvent<RecordingShare, CompositionShare>` — 176-byte payload and a fresh wrapped stake ID.
+* `CompositionRoutedStakeCreatedEvent<RecordingShare, CompositionShare>` — ordered addresses `composition_id`, `admin_cap_id`, `recording_id`, `routed_stake_id`, `stake_id`, `sender`, then `principal_value: u64` and `registration_count: u64`; 208-byte payload.
+* `CompositionRoutedStakeRegisteredEvent<RecordingShare, CompositionShare, Currency>` — `composition_id`, `admin_cap_id`, `recording_id`, `routed_stake_id`, `stake_id`, `pool_id`, `principal_value`, registration counts, pool shares, `pool_balance`, index, debt, carry and cumulative deposits; 336-byte payload.
+* `CompositionRoutedStakeUnregisteredEvent<RecordingShare, CompositionShare, Currency>` — the same ordered fields, plus `forfeited_scaled_reward` (`shares * index - registration_debt`); 368-byte payload.
+* `CompositionRoutedStakeUnstakedEvent<RecordingShare, CompositionShare>` — `composition_id`, `admin_cap_id`, `routed_stake_id`, `stake_id`, `principal_value`; 136-byte payload.
+* `CompositionRoutedStakeRestakedEvent<RecordingShare, CompositionShare>` — `composition_id`, `admin_cap_id`, `routed_stake_id`, `stake_id`, `sender`, `principal_value`, `registration_count`; 176-byte payload and a fresh wrapped stake ID.
+
+In the registration events, `principal_value`, registration counts, pool shares and `pool_balance` are `u64`; the pool index, registration debt and forfeited residue are scaled `u256`; pool carry and cumulative deposits are `u128`. Registered snapshots contain the newly inserted debt; unregistered snapshots contain the removed debt and `shares * index - registration_debt` residue. IDs are provenance from the supplied objects, including the supplied cap ID; no cap-ID equality check is added.
 
 Views, `stake_address`, direct routed-stake operations and failed actions do not emit adapter events. A missing stake or registration is left to the dependency guard rather than being preempted by a snapshot.
 
@@ -19,5 +21,5 @@ Composing a positive `settled_funds_value` reader snapshot into `create_stake` r
 ```sh
 sui move build --build-env testnet
 sui move test --test --build-env testnet --coverage
-sui move coverage source --test --build-env testnet
+sui move coverage summary --build-env testnet --summarize-functions
 ```

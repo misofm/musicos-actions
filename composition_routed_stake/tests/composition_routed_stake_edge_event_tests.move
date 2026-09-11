@@ -142,6 +142,42 @@ fun foreign_same_share_cap_is_accepted_as_type_only_credential() {
 }
 
 #[test]
+fun supplied_foreign_cap_id_is_provenance_for_all_five_actions() {
+    let ctx = &mut tx_context::dummy();
+    let (mut composition, composition_cap, mut recording, recording_cap) = fixture<R1, C1>(ctx);
+    let (foreign_composition, foreign_cap) = composition::new_for_testing<C1>("Foreign", 2_000, ctx);
+    let foreign_cap_id = object::id(&foreign_cap).to_address();
+    let composition_id = object::id(&composition).to_address();
+    let mut pool = pool::new<R1, K1>(recording.uid_mut(&recording_cap));
+    balance::create_for_testing<R1>(5).send_funds(composition_id);
+    let mut routed = action::create_stake(&mut composition, &foreign_cap, &recording, 5, ctx);
+    let created = event::events_by_type<action::CompositionRoutedStakeCreatedEvent<R1, C1>>();
+    let (_, created_cap, _, _, _, _, _, _) = action::created_event_fields(&created[0]);
+    assert_eq!(created_cap, foreign_cap_id);
+    action::register(&mut composition, &foreign_cap, &recording, &mut routed, &mut pool);
+    let registered = event::events_by_type<action::CompositionRoutedStakeRegisteredEvent<R1, C1, K1>>();
+    let (_, registered_cap, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = action::registered_event_fields(&registered[0]);
+    assert_eq!(registered_cap, foreign_cap_id);
+    action::unregister(&mut composition, &foreign_cap, &recording, &mut routed, &mut pool);
+    let unregistered = event::events_by_type<action::CompositionRoutedStakeUnregisteredEvent<R1, C1, K1>>();
+    let (_, unregistered_cap, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _) = action::unregistered_event_fields(&unregistered[0]);
+    assert_eq!(unregistered_cap, foreign_cap_id);
+    let principal = action::unstake(&mut composition, &foreign_cap, &mut routed);
+    let unstaked = event::events_by_type<action::CompositionRoutedStakeUnstakedEvent<R1, C1>>();
+    let (_, unstaked_cap, _, _, _) = action::unstaked_event_fields(&unstaked[0]);
+    assert_eq!(unstaked_cap, foreign_cap_id);
+    action::restake(&mut composition, &foreign_cap, &mut routed, principal, ctx);
+    let restaked = event::events_by_type<action::CompositionRoutedStakeRestakedEvent<R1, C1>>();
+    let (_, restaked_cap, _, _, _, _, _) = action::restaked_event_fields(&restaked[0]);
+    assert_eq!(restaked_cap, foreign_cap_id);
+    action::register(&mut composition, &foreign_cap, &recording, &mut routed, &mut pool);
+    action::unregister(&mut composition, &foreign_cap, &recording, &mut routed, &mut pool);
+    balance::destroy_for_testing(action::unstake(&mut composition, &foreign_cap, &mut routed));
+    destroy(routed); destroy(pool); destroy(recording); destroy(recording_cap);
+    destroy(composition); destroy(composition_cap); destroy(foreign_composition); destroy(foreign_cap);
+}
+
+#[test]
 fun max_u64_principal_round_trips_with_fixed_payload() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, composition_cap, recording, recording_cap) = fixture<R1, C1>(ctx);

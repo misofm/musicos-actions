@@ -51,7 +51,7 @@ public struct CompositionRoutedStakeRegisteredEvent<phantom RecordingShare, phan
     routed_stake_id: address,
     stake_id: address,
     pool_id: address,
-    principal: u64,
+    principal_value: u64,
     registration_count_before: u64,
     registration_count_after: u64,
     pool_staked_shares_before: u64,
@@ -74,7 +74,7 @@ public struct CompositionRoutedStakeUnregisteredEvent<phantom RecordingShare, ph
     routed_stake_id: address,
     stake_id: address,
     pool_id: address,
-    principal: u64,
+    principal_value: u64,
     registration_count_before: u64,
     registration_count_after: u64,
     pool_staked_shares_before: u64,
@@ -94,7 +94,7 @@ public struct CompositionRoutedStakeUnstakedEvent<phantom RecordingShare, phanto
     admin_cap_id: address,
     routed_stake_id: address,
     stake_id: address,
-    principal: u64,
+    principal_value: u64,
 }
 
 /// Complete provenance for a successful refill. A restake always creates a
@@ -106,7 +106,7 @@ public struct CompositionRoutedStakeRestakedEvent<phantom RecordingShare, phanto
     routed_stake_id: address,
     stake_id: address,
     sender: address,
-    principal: u64,
+    principal_value: u64,
     registration_count: u64,
 }
 
@@ -179,7 +179,7 @@ public fun register<RecordingShare, CompositionShare, Currency>(
         routed_stake_id,
         stake_id,
         pool_id,
-        principal,
+        principal_value: principal,
         registration_count_before,
         registration_count_after: stake::registration_count(wrapped),
         pool_staked_shares_before,
@@ -238,7 +238,7 @@ public fun unregister<RecordingShare, CompositionShare, Currency>(
         routed_stake_id,
         stake_id,
         pool_id,
-        principal,
+        principal_value: principal,
         registration_count_before,
         registration_count_after: stake::registration_count(wrapped),
         pool_staked_shares_before,
@@ -273,7 +273,7 @@ public fun unstake<RecordingShare, CompositionShare>(
         admin_cap_id,
         routed_stake_id,
         stake_id,
-        principal: principal.value(),
+        principal_value: principal.value(),
     });
     principal
 }
@@ -299,7 +299,7 @@ public fun restake<RecordingShare, CompositionShare>(
         routed_stake_id,
         stake_id: object::id(wrapped).to_address(),
         sender,
-        principal: wrapped.value(),
+        principal_value: wrapped.value(),
         registration_count: stake::registration_count(wrapped),
     });
 }
@@ -333,7 +333,7 @@ public fun registered_event_fields<RecordingShare, CompositionShare, Currency>(
         event.routed_stake_id,
         event.stake_id,
         event.pool_id,
-        event.principal,
+        event.principal_value,
         event.registration_count_before,
         event.registration_count_after,
         event.pool_staked_shares_before,
@@ -357,7 +357,7 @@ public fun unregistered_event_fields<RecordingShare, CompositionShare, Currency>
         event.routed_stake_id,
         event.stake_id,
         event.pool_id,
-        event.principal,
+        event.principal_value,
         event.registration_count_before,
         event.registration_count_after,
         event.pool_staked_shares_before,
@@ -380,7 +380,7 @@ public fun unstaked_event_fields<RecordingShare, CompositionShare>(
         event.admin_cap_id,
         event.routed_stake_id,
         event.stake_id,
-        event.principal,
+        event.principal_value,
     )
 }
 
@@ -394,7 +394,7 @@ public fun restaked_event_fields<RecordingShare, CompositionShare>(
         event.routed_stake_id,
         event.stake_id,
         event.sender,
-        event.principal,
+        event.principal_value,
         event.registration_count,
     )
 }
