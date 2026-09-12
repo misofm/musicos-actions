@@ -5,6 +5,6 @@ license = "Apache 2.0"
 authors = ["Miso Labs, Inc. (build@miso.network)"]
 
 [dependencies]
-musicos = { git = "https://github.com/misofm/musicos.git", rev = "4cb3c926b1f9bb5103f3f7194e4e1e34b6c87840" }
+musicos = { git = "https://github.com/misofm/musicos.git", rev = "1513a450667e6453582f3b30c03c1c14e073b285" }
 hikida = { git = "https://github.com/unconfirmedlabs/hikida.git", rev = "c91d6a0f536a5f1457b342a8838fc1d7ba09212e" }
-vault = { git = "https://github.com/misofm/vault.git", rev = "23ddacdfc6248285ba0333f58d7e99f4bc3a1fa2", modes = ["test"] }
+vault = { git = "https://github.com/misofm/vault.git", rev = "d380b4d667c6d1bd94634f5c4f200f0a191cef0f", modes = ["test"] }
