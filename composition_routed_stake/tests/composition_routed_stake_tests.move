@@ -95,10 +95,10 @@ fun complete_return_oriented_lifecycle_routes_rewards_and_releases_principal() {
         routed_stake::RoutedStakeSweptEvent<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>,
     >();
     assert_eq!(swept.length(), 1);
-    let (event_stake_id, event_parent_id, swept_value) =
-        routed_stake::swept_event_fields(&swept[0]);
-    assert_eq!(event_stake_id, object::id(&routed));
-    assert_eq!(event_parent_id, composition_id);
+    let (event_stake_id, event_parent_id, swept_value, _) =
+        routed_stake::swept_event_summary(&swept[0]);
+    assert_eq!(event_stake_id, object::id_address(&routed));
+    assert_eq!(event_parent_id, composition_id.to_address());
     assert_eq!(swept_value, 1_000);
 
     action::unregister(
@@ -114,10 +114,10 @@ fun complete_return_oriented_lifecycle_routes_rewards_and_releases_principal() {
     let unstaked = event::events_by_type<
         routed_stake::RoutedStakeUnstakedEvent<RECORDING_SHARE, COMPOSITION_SHARE>,
     >();
-    let (unstaked_id, unstaked_parent, unstaked_value) =
+    let (unstaked_id, unstaked_parent, _, unstaked_value) =
         routed_stake::unstaked_event_fields(&unstaked[0]);
-    assert_eq!(unstaked_id, object::id(&routed));
-    assert_eq!(unstaked_parent, composition_id);
+    assert_eq!(unstaked_id, object::id_address(&routed));
+    assert_eq!(unstaked_parent, composition_id.to_address());
     assert_eq!(unstaked_value, 200);
 
     action::restake(

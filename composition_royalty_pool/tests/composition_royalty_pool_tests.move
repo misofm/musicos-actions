@@ -42,9 +42,9 @@ fun new_pool_is_returned_unshared_with_exact_parent_and_event() {
     pool.assert_derived_from(composition_id);
     let events = event::events_by_type<RoyaltyPoolCreatedEvent<COMPOSITION_SHARE, CURRENCY>>();
     assert_eq!(events.length(), 1);
-    let (pool_id, parent_id) = pool::created_event_fields(&events[0]);
-    assert_eq!(pool_id, object::id(&pool));
-    assert_eq!(parent_id, composition_id);
+    let (pool_id, parent_id, _, _, _, _, _, _) = pool::created_event_fields(&events[0]);
+    assert_eq!(pool_id, object::id_address(&pool));
+    assert_eq!(parent_id, composition_id.to_address());
     let action_events =
         event::events_by_type<action::CompositionRoyaltyPoolCreatedEvent<COMPOSITION_SHARE, CURRENCY>>();
     assert_eq!(action_events.length(), 1);
@@ -139,8 +139,8 @@ fun receive_deposits_only_into_canonical_pool_and_emits_event() {
     assert_eq!(reward.value(), 500);
     let events = event::events_by_type<RoyaltyDepositedEvent<COMPOSITION_SHARE, CURRENCY>>();
     assert_eq!(events.length(), 1);
-    let (event_pool_id, value) = pool::deposited_event_fields(&events[0]);
-    assert_eq!(event_pool_id, object::id(&pool));
+    let (event_pool_id, value, _, _, _, _, _, _, _) = pool::deposited_event_fields(&events[0]);
+    assert_eq!(event_pool_id, object::id_address(&pool));
     assert_eq!(value, 500);
     let action_events =
         event::events_by_type<action::CompositionCoinsDepositedEvent<COMPOSITION_SHARE, CURRENCY>>();
