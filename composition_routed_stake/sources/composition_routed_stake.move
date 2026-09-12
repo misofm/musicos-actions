@@ -24,6 +24,8 @@ const EPoolNotForRecording: u64 = 0;
 const EStakeNotForComposition: u64 = 1;
 /// The Recording does not belong to the supplied Composition.
 const ERecordingNotForComposition: u64 = 2;
+/// Zero shares cannot create a routed stake.
+const ENoValueToRedeem: u64 = 3;
 
 // === Events ===
 
@@ -125,6 +127,7 @@ public fun create_stake<RecordingShare, CompositionShare>(
     let recording_id = object::id(recording).to_address();
     let sender = tx_context::sender(ctx);
     let uid = composition.uid_mut(admin_cap);
+    assert!(value > 0, ENoValueToRedeem);
     let shares = hikida::redeem_balance<RecordingShare>(uid, value);
     let routed = routed_stake::new(uid, shares, ctx);
     let stake_id = object::id(routed.stake()).to_address();

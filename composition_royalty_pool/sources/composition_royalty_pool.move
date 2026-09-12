@@ -15,6 +15,13 @@ use sui::coin::Coin;
 use sui::event::emit;
 use sui::transfer::Receiving;
 
+// === Errors ===
+
+/// Empty coin input is rejected by this Action even though Hikida is total.
+const ENoCoinsToReceive: u64 = 0;
+/// Zero-value explicit redemption is rejected by this Action.
+const ENoValueToRedeem: u64 = 1;
+
 // === Events ===
 
 /// Complete provenance and initial pool snapshot for a newly created pool.
@@ -112,7 +119,9 @@ public fun receive_and_deposit<CompositionShare, Currency>(
     let carry_before = pool.carry();
     let cumulative_deposits_before = pool.cumulative_deposits();
     let coin_ids = coins.map_ref!(|coin| sui::transfer::receiving_object_id(coin).to_address());
-    let received = hikida::receive_balance(composition.uid_mut(admin_cap), coins);
+    let uid = composition.uid_mut(admin_cap);
+    assert!(!coins.is_empty(), ENoCoinsToReceive);
+    let received = hikida::receive_coins_as_balance(uid, coins);
     let amount = received.value();
     pool.deposit(received);
     emit(CompositionCoinsDepositedEvent<CompositionShare, Currency> {
@@ -151,7 +160,9 @@ public fun redeem_and_deposit<CompositionShare, Currency>(
     let reward_per_share_before = pool.cumulative_reward_per_share();
     let carry_before = pool.carry();
     let cumulative_deposits_before = pool.cumulative_deposits();
-    let redeemed = hikida::redeem_balance<Currency>(composition.uid_mut(admin_cap), value);
+    let uid = composition.uid_mut(admin_cap);
+    assert!(value > 0, ENoValueToRedeem);
+    let redeemed = hikida::redeem_balance<Currency>(uid, value);
     let amount = redeemed.value();
     pool.deposit(redeemed);
     emit(CompositionFundsDepositedEvent<CompositionShare, Currency> {

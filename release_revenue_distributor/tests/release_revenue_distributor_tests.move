@@ -4,7 +4,6 @@
 #[test_only]
 module release_revenue_distributor::release_revenue_distributor_tests;
 
-use hikida::hikida;
 use musicos::release::{Self, Release, ReleaseAdminCap};
 use musicos::test_helpers;
 use musicos::track;
@@ -302,7 +301,7 @@ fun redeem_all_rejects_foreign_cap_on_empty_settled_snapshot() {
     abort
 }
 
-#[test, expected_failure(abort_code = ENoCoinsToReceive, location = hikida)]
+#[test, expected_failure(abort_code = ENoCoinsToReceive, location = action)]
 fun empty_receive_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut release, admin_cap, _, _) = fixture(ctx);
@@ -310,7 +309,7 @@ fun empty_receive_aborts() {
     abort
 }
 
-#[test, expected_failure(abort_code = ENoValueToRedeem, location = hikida)]
+#[test, expected_failure(abort_code = ENoValueToRedeem, location = action)]
 fun zero_redeem_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut release, admin_cap, _, _) = fixture(ctx);

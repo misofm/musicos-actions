@@ -16,6 +16,11 @@ use sui::coin::Coin;
 use sui::event::emit;
 use sui::transfer::Receiving;
 
+/// Explicit coin receipt requires at least one ticket.
+const ENoCoinsToReceive: u64 = 0;
+/// Explicit redemption requires a positive amount; full-settled redemption may be a no-op.
+const ENoValueToRedeem: u64 = 1;
+
 /// Emitted after selected Release-owned coins are received and merged into a balance.
 public struct ReleaseCoinsReceivedEvent<phantom Currency> has copy, drop {
     release_id: address,
@@ -60,7 +65,9 @@ public fun redeem_and_distribute<Currency>(
 ) {
     let release_id = object::id(release).to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
-    let revenue = hikida::redeem_balance<Currency>(release.uid_mut(admin_cap), value);
+    let uid = release.uid_mut(admin_cap);
+    assert!(value > 0, ENoValueToRedeem);
+    let revenue = hikida::redeem_balance<Currency>(uid, value);
     emit(ReleaseFundsRedeemedEvent<Currency> {
         release_id,
         admin_cap_id,
@@ -106,7 +113,9 @@ public fun receive_and_distribute<Currency>(
     let release_id = object::id(release).to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
     let coin_ids = coins.map_ref!(|coin| sui::transfer::receiving_object_id(coin).to_address());
-    let revenue = hikida::receive_balance(release.uid_mut(admin_cap), coins);
+    let uid = release.uid_mut(admin_cap);
+    assert!(!coins.is_empty(), ENoCoinsToReceive);
+    let revenue = hikida::receive_coins_as_balance(uid, coins);
     emit(ReleaseCoinsReceivedEvent<Currency> {
         release_id,
         admin_cap_id,

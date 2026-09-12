@@ -4,7 +4,6 @@
 #[test_only]
 module recording_royalty_pool::recording_royalty_pool_tests;
 
-use hikida::hikida;
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use recording_royalty_pool::recording_royalty_pool as action;
 use royalty_pool::pool::{Self, RoyaltyDepositedEvent, RoyaltyPool, RoyaltyPoolCreatedEvent};
@@ -346,7 +345,7 @@ fun receive_rejects_wrong_parent_pool() {
     abort
 }
 
-#[test, expected_failure(abort_code = ENoCoinsToReceive, location = hikida)]
+#[test, expected_failure(abort_code = ENoCoinsToReceive, location = action)]
 fun empty_receive_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut recording, admin_cap) = fixture(ctx);
@@ -411,7 +410,7 @@ fun receive_zero_value_with_active_stake_aborts_on_pool_guard() {
     abort
 }
 
-#[test, expected_failure(abort_code = ENoValueToRedeem, location = hikida)]
+#[test, expected_failure(abort_code = ENoValueToRedeem, location = action)]
 fun zero_redeem_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut recording, admin_cap) = fixture(ctx);

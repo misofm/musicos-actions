@@ -5,7 +5,6 @@
 module composition_routed_stake::composition_routed_stake_tests;
 
 use composition_routed_stake::composition_routed_stake as action;
-use hikida::hikida;
 use musicos::composition::{Self, Composition, CompositionAdminCap};
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use royalty_pool::pool::{Self, RoyaltyPool};
@@ -20,7 +19,7 @@ use vault::vault;
 const EPoolNotForRecording: u64 = 0;
 const EStakeNotForComposition: u64 = 1;
 const ERecordingNotForComposition: u64 = 2;
-const ENoValueToRedeem: u64 = 1;
+const ENoValueToRedeem: u64 = 3;
 const EStakeExists: u64 = 2;
 const EPoolsRegistered: u64 = 1;
 const EZeroBalance: u64 = 0;
@@ -344,7 +343,7 @@ fun unregister_rejects_pool_from_wrong_recording() {
     abort
 }
 
-#[test, expected_failure(abort_code = ENoValueToRedeem, location = hikida)]
+#[test, expected_failure(abort_code = ENoValueToRedeem, location = action)]
 fun create_with_zero_redemption_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap, recording, _recording_cap) = fixture(ctx);
@@ -361,7 +360,7 @@ fun create_overdraw_uses_existing_accumulator_behavior() {
     destroy(recording); destroy(recording_cap); destroy(composition); destroy(admin_cap);
 }
 
-#[test, expected_failure(abort_code = ENoValueToRedeem, location = hikida)]
+#[test, expected_failure(abort_code = ENoValueToRedeem, location = action)]
 fun zero_redemption_precedes_duplicate_derivation_claim() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap, recording, _recording_cap) = fixture(ctx);
