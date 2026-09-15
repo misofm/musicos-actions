@@ -382,10 +382,15 @@ fun overdraw_is_not_enforced_by_the_unit_vm() {
     destroy(admin_cap);
 }
 
-/// A funded redemption followed by the on-chain reader in the same
-/// transaction: the second call sees an empty snapshot and adds nothing.
+/// Unit-VM boundary pin, not a same-commit idempotency claim: after a funded
+/// helper call, `redeem_all_and_distribute` in the same transaction reads the
+/// unit VM's always-zero snapshot and adds nothing. On the network the
+/// snapshot is constant within a commit, so a second redemption of the same
+/// Release in one PTB withdraws the snapshot again and the whole transaction
+/// fails with `InsufficientFundsForWithdraw`; only a call in a later commit is
+/// a no-op. See `same_tx_duplicate_redemptions_withdraw_twice_in_the_unit_vm`.
 #[test]
-fun second_redeem_all_after_a_funded_redemption_is_a_no_op() {
+fun second_redeem_all_in_the_same_tx_sees_the_vm_zero_snapshot() {
     let mut scenario = test_scenario::begin(@0x0);
     sui::accumulator::create_for_testing(scenario.ctx());
     scenario.next_tx(@0xA);
@@ -413,6 +418,66 @@ fun second_redeem_all_after_a_funded_redemption_is_a_no_op() {
     destroy(release);
     destroy(admin_cap);
     scenario.end();
+}
+
+/// Two helper calls with the same snapshot value in ONE transaction withdraw
+/// twice. The Action has no in-transaction dedupe; on the network the second
+/// withdrawal exceeds the settled balance and the whole transaction fails with
+/// `InsufficientFundsForWithdraw` (not a Move abort), which the unit VM cannot
+/// show because it never checks withdrawals against a balance. Crankers must
+/// include each Release at most once per PTB.
+#[test]
+fun same_tx_duplicate_redemptions_withdraw_twice_in_the_unit_vm() {
+    let ctx = &mut tx_context::dummy();
+    let (mut release, admin_cap, _, _) = fixture(ctx);
+    action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(
+        &mut release,
+        &admin_cap,
+        10_000,
+    );
+    action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(
+        &mut release,
+        &admin_cap,
+        10_000,
+    );
+    let redeemed = event::events_by_type<action::ReleaseFundsRedeemedEvent<CURRENCY>>();
+    assert_eq!(redeemed.length(), 2);
+    let (_, _, first_amount) = action::funds_redeemed_event_fields(&redeemed[0]);
+    let (_, _, second_amount) = action::funds_redeemed_event_fields(&redeemed[1]);
+    assert_eq!(first_amount, 10_000);
+    assert_eq!(second_amount, 10_000);
+    let summaries = event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>();
+    assert_eq!(summaries.length(), 2);
+    destroy(release);
+    destroy(admin_cap);
+}
+
+/// The framework caps the settled snapshot at `u64::MAX`; the helper must not
+/// abort there (per-track `bps::apply` widens to u128) and must conserve the
+/// full input across the tracks and the requeued remainder.
+#[test]
+fun u64_max_snapshot_distributes_without_abort() {
+    let ctx = &mut tx_context::dummy();
+    let (mut release, admin_cap, _, _) = fixture(ctx);
+    let max = std::u64::max_value!();
+    action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(&mut release, &admin_cap, max);
+    let redeemed = event::events_by_type<action::ReleaseFundsRedeemedEvent<CURRENCY>>();
+    assert_eq!(redeemed.length(), 1);
+    let (_, _, amount) = action::funds_redeemed_event_fields(&redeemed[0]);
+    assert_eq!(amount, max);
+    let summaries = event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>();
+    assert_eq!(summaries.length(), 1);
+    let (_, track_count, input, distributed, remainder) =
+        action::distribution_event_fields(&summaries[0]);
+    assert_eq!(track_count, 2);
+    assert_eq!(input, max);
+    assert_eq!(distributed + remainder, max);
+    let tracks = event::events_by_type<action::ReleaseTrackRevenueDistributedEvent<CURRENCY>>();
+    let (_, _, _, _, _, _, amount_a) = action::track_event_fields(&tracks[0]);
+    let (_, _, _, _, _, _, amount_b) = action::track_event_fields(&tracks[1]);
+    assert_eq!(amount_a + amount_b, distributed);
+    destroy(release);
+    destroy(admin_cap);
 }
 
 /// Batch safety: three Releases cranked in one transaction. The middle one

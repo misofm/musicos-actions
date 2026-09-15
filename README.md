@@ -15,7 +15,9 @@ Production construction issues exactly one share type, one `TreasuryCap`, and on
 
 ## Accumulator redemption
 
-Every accumulator redemption is a fixed "redeem all" crank: `redeem_all_and_distribute` (Release) and `redeem_all_and_deposit` (Composition and Recording) take the framework `AccumulatorRoot`, read `balance::settled_funds_value` on chain, and redeem exactly that snapshot. No action accepts a caller-chosen amount. A zero snapshot is an authorized, idempotent no-op that emits no event, and the pool actions are likewise a no-op (with nothing redeemed) while the pool has no registered stake, so one already-cranked or unstaked item never aborts a batched permissionless crank.
+Every accumulator redemption is a fixed "redeem all" crank: `redeem_all_and_distribute` (Release) and `redeem_all_and_deposit` (Composition and Recording) take the framework `AccumulatorRoot`, read `balance::settled_funds_value` on chain, and redeem exactly that snapshot. No action accepts a caller-chosen amount. A zero snapshot is an authorized no-op that emits no event, and the pool actions are likewise a no-op (with nothing redeemed) while the pool has no registered stake, so an item cranked in an earlier consensus commit, or an unstaked item, passes through a batched permissionless crank untouched.
+
+The no-op holds only **across** consensus commits. `settled_funds_value` is written solely by the settlement system transaction, so it is constant for every transaction in a commit; redeeming the same object twice in one PTB, or from two crankers in the same commit, withdraws the snapshot twice and the network fails that whole transaction with `InsufficientFundsForWithdraw` (a transaction-level failure with no Move abort code). Operational requirements for any crank: include each object at most once per PTB, and treat `InsufficientFundsForWithdraw` as "retry next commit", not as a poisoned item.
 
 ## Accumulator testing
 

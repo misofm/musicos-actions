@@ -62,8 +62,17 @@ public struct ReleaseRevenueDistributedEvent<phantom Currency> has copy, drop {
 /// amount, so a permissionless crank cannot fragment revenue into dust-sized
 /// distributions. The framework snapshot is capped at `u64::MAX`; excess
 /// funds, newly sent funds, and per-track flooring remainder settle for a
-/// later call. A zero settled snapshot is an authorized, idempotent no-op
-/// that emits no event, so one already-cranked Release never aborts a batch.
+/// later call. A zero settled snapshot is an authorized no-op that emits no
+/// event, so a Release cranked in an earlier consensus commit passes through
+/// a batched crank untouched.
+///
+/// The snapshot is written only by consensus settlement, so within one commit
+/// it is constant: redeeming the same Release twice in one PTB, or from two
+/// transactions in the same commit, withdraws the snapshot twice and the
+/// network fails that whole transaction with `InsufficientFundsForWithdraw`
+/// (a transaction-level failure, not a Move abort). Crankers must include
+/// each object at most once per PTB and treat that status as retry next
+/// commit.
 public fun redeem_all_and_distribute<Currency>(
     release: &mut Release,
     admin_cap: &ReleaseAdminCap,

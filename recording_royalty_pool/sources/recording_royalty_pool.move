@@ -154,13 +154,22 @@ public fun receive_and_deposit<RecordingShare, CompositionShare, Currency>(
 ///
 /// This is the only accumulator redemption path: callers cannot select an
 /// amount, so a permissionless crank cannot fragment revenue. The call is an
-/// authorized, idempotent no-op that emits no event when the settled snapshot
-/// is zero or when the pool has no registered stake. With no stakers nothing
-/// is redeemed: the funds stay in the Recording's accumulator until a stake
+/// authorized no-op that emits no event when the settled snapshot is zero or
+/// when the pool has no registered stake. With no stakers nothing is
+/// redeemed: the funds stay in the Recording's accumulator until a stake
 /// registers, rather than being folded into a pool nobody can claim from.
-/// Either no-op lets one already-cranked or unstaked item pass through a
-/// batched crank without aborting it. The framework snapshot is capped at
-/// `u64::MAX`; excess and newly sent funds settle for a later call.
+/// Either no-op lets an item cranked in an earlier consensus commit, or an
+/// unstaked item, pass through a batched crank untouched. The framework
+/// snapshot is capped at `u64::MAX`; excess and newly sent funds settle for a
+/// later call.
+///
+/// The snapshot is written only by consensus settlement, so within one commit
+/// it is constant: redeeming the same Recording twice in one PTB, or from two
+/// transactions in the same commit, withdraws the snapshot twice and the
+/// network fails that whole transaction with `InsufficientFundsForWithdraw`
+/// (a transaction-level failure, not a Move abort). Crankers must include
+/// each object at most once per PTB and treat that status as retry next
+/// commit.
 /// Emits `RecordingFundsDepositedEvent` after a successful deposit.
 public fun redeem_all_and_deposit<RecordingShare, CompositionShare, Currency>(
     recording: &mut Recording<RecordingShare, CompositionShare>,
@@ -187,6 +196,9 @@ fun redeem_settled_value_and_deposit<RecordingShare, CompositionShare, Currency>
     value: u64,
 ) {
     pool.assert_derived_from(object::id(recording));
+    // Intentionally short-circuits before `uid_mut(admin_cap)`: Recording admin
+    // caps are matched by phantom share type only (no object-id check exists
+    // to skip), so returning early is security-neutral.
     if (value == 0 || pool.staked_shares() == 0) return;
     let recording_id = object::id(recording).to_address();
     let composition_id = recording.composition_id().to_address();
