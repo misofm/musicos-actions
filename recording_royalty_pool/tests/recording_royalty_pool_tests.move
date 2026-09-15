@@ -9,6 +9,7 @@ use recording_royalty_pool::recording_royalty_pool as action;
 use royalty_pool::pool::{Self, RoyaltyDepositedEvent, RoyaltyPool, RoyaltyPoolCreatedEvent};
 use royalty_pool::stake;
 use std::unit_test::{assert_eq, destroy};
+use sui::accumulator::AccumulatorRoot;
 use sui::balance;
 use sui::coin::{Self, Coin};
 use sui::event;
@@ -16,7 +17,6 @@ use sui::test_scenario;
 use vault::vault;
 
 const ENoCoinsToReceive: u64 = 0;
-const ENoValueToRedeem: u64 = 1;
 const EPoolNotDerivedFromParent: u64 = 0;
 
 public struct RECORDING_SHARE() has drop;
@@ -208,8 +208,11 @@ fun receive_deposits_only_into_canonical_pool_and_emits_event() {
     scenario.end();
 }
 
+/// The private settled-value path with a positive snapshot: the full amount
+/// is redeemed and deposited, the action event carries exact before/after
+/// pool metrics, and the sole staker can claim every unit.
 #[test]
-fun positive_direct_redemption_deposits_after_transaction_boundary() {
+fun settled_value_helper_deposits_full_amount_and_emits_event() {
     let mut scenario = test_scenario::begin(@0xA);
     let (mut recording, admin_cap) = fixture(scenario.ctx());
     let recording_id = object::id(&recording);
@@ -233,7 +236,7 @@ fun positive_direct_redemption_deposits_after_transaction_boundary() {
     balance::create_for_testing<CURRENCY>(321).send_funds(recording_id.to_address());
 
     scenario.next_tx(@0xB);
-    action::redeem_and_deposit(&mut recording, &admin_cap, &mut pool, 321);
+    action::redeem_settled_value_and_deposit_for_testing(&mut recording, &admin_cap, &mut pool, 321);
     let pool_balance_after = pool.balance().value();
     let reward_per_share_after = pool.cumulative_reward_per_share();
     let carry_after = pool.carry();
@@ -410,26 +413,308 @@ fun receive_zero_value_with_active_stake_aborts_on_pool_guard() {
     abort
 }
 
-#[test, expected_failure(abort_code = ENoValueToRedeem, location = action)]
-fun zero_redeem_aborts() {
-    let ctx = &mut tx_context::dummy();
-    let (mut recording, admin_cap) = fixture(ctx);
-    let mut pool = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
-        &mut recording,
-        &admin_cap,
-    );
-    action::redeem_and_deposit(&mut recording, &admin_cap, &mut pool, 0);
+#[test, expected_failure(abort_code = EPoolNotDerivedFromParent, location = pool)]
+fun redeem_all_rejects_wrong_parent_pool_even_on_empty_snapshot() {
+    let mut scenario = test_scenario::begin(@0x0);
+    sui::accumulator::create_for_testing(scenario.ctx());
+    scenario.next_tx(@0xA);
+    let (mut recording, admin_cap) = fixture(scenario.ctx());
+    let (mut foreign, foreign_cap) =
+        recording::new_for_testing<FOREIGN_SHARE, COMPOSITION_SHARE>(
+            object::id_from_address(@0xC0),
+            scenario.ctx(),
+        );
+    let mut wrong_pool = pool::new<RECORDING_SHARE, CURRENCY>(foreign.uid_mut(&foreign_cap));
+    let root = scenario.take_shared<AccumulatorRoot>();
+    action::redeem_all_and_deposit(&mut recording, &admin_cap, &mut wrong_pool, &root);
     abort
 }
 
-#[test, expected_failure]
-fun overdraw_redeem_aborts_on_empty_accumulator() {
+#[test, expected_failure(abort_code = EPoolNotDerivedFromParent, location = pool)]
+fun settled_value_helper_rejects_wrong_parent_pool() {
+    let ctx = &mut tx_context::dummy();
+    let (mut recording, admin_cap) = fixture(ctx);
+    let (mut foreign, foreign_cap) =
+        recording::new_for_testing<FOREIGN_SHARE, COMPOSITION_SHARE>(
+            object::id_from_address(@0xC0),
+            ctx,
+        );
+    let mut wrong_pool = pool::new<RECORDING_SHARE, CURRENCY>(foreign.uid_mut(&foreign_cap));
+    action::redeem_settled_value_and_deposit_for_testing(
+        &mut recording,
+        &admin_cap,
+        &mut wrong_pool,
+        1,
+    );
+    abort
+}
+
+/// The on-chain reader path against a real (empty) `AccumulatorRoot`: called
+/// twice in a row with a registered stake, both calls are silent no-ops.
+#[test]
+fun redeem_all_is_an_idempotent_no_op_without_settled_funds() {
+    let mut scenario = test_scenario::begin(@0x0);
+    sui::accumulator::create_for_testing(scenario.ctx());
+    scenario.next_tx(@0xA);
+    let (mut recording, admin_cap) = fixture(scenario.ctx());
+    let mut pool = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+        &mut recording,
+        &admin_cap,
+    );
+    let mut holder = stake::new(balance::create_for_testing<RECORDING_SHARE>(100), scenario.ctx());
+    pool.register_stake(&mut holder);
+    let root = scenario.take_shared<AccumulatorRoot>();
+    let events_before = event::num_events();
+    action::redeem_all_and_deposit(&mut recording, &admin_cap, &mut pool, &root);
+    action::redeem_all_and_deposit(&mut recording, &admin_cap, &mut pool, &root);
+    assert_eq!(event::num_events(), events_before);
+    assert_eq!(pool.balance().value(), 0);
+    assert_eq!(pool.cumulative_deposits(), 0);
+    assert_eq!(pool.pending_rewards(&holder), 0);
+    test_scenario::return_shared(root);
+    pool.unregister_stake(&mut holder);
+    balance::destroy_for_testing(stake::destroy(holder));
+    destroy(pool);
+    destroy(recording);
+    destroy(admin_cap);
+    scenario.end();
+}
+
+/// The private settled-value path is total at zero even with a registered
+/// stake: no abort, no action event, no pool event, pool untouched.
+#[test]
+fun settled_value_helper_is_a_silent_no_op_at_zero() {
     let ctx = &mut tx_context::dummy();
     let (mut recording, admin_cap) = fixture(ctx);
     let mut pool = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
         &mut recording,
         &admin_cap,
     );
-    action::redeem_and_deposit(&mut recording, &admin_cap, &mut pool, 1);
-    abort
+    let mut holder = stake::new(balance::create_for_testing<RECORDING_SHARE>(100), ctx);
+    pool.register_stake(&mut holder);
+    let events_before = event::num_events();
+    action::redeem_settled_value_and_deposit_for_testing(&mut recording, &admin_cap, &mut pool, 0);
+    assert_eq!(event::num_events(), events_before);
+    assert_eq!(pool.cumulative_deposits(), 0);
+    pool.unregister_stake(&mut holder);
+    balance::destroy_for_testing(stake::destroy(holder));
+    destroy(pool);
+    destroy(recording);
+    destroy(admin_cap);
+}
+
+/// With no registered stake, a positive snapshot is not redeemed at all: the
+/// pool is untouched and no event is emitted. Once a stake registers, the same
+/// funds are redeemed in full and the staker can claim every unit.
+#[test]
+fun zero_stakers_is_a_no_op_and_funds_remain_redeemable_after_a_stake_registers() {
+    let mut scenario = test_scenario::begin(@0xA);
+    let (mut recording, admin_cap) = fixture(scenario.ctx());
+    let recording_id = object::id(&recording);
+    let mut pool = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+        &mut recording,
+        &admin_cap,
+    );
+    balance::create_for_testing<CURRENCY>(321).send_funds(recording_id.to_address());
+
+    scenario.next_tx(@0xB);
+    assert_eq!(pool.staked_shares(), 0);
+    let events_before = event::num_events();
+    action::redeem_settled_value_and_deposit_for_testing(&mut recording, &admin_cap, &mut pool, 321);
+    assert_eq!(event::num_events(), events_before);
+    assert_eq!(pool.balance().value(), 0);
+    assert_eq!(pool.cumulative_deposits(), 0);
+    assert_eq!(
+        event::events_by_type<RoyaltyDepositedEvent<RECORDING_SHARE, CURRENCY>>().length(),
+        0,
+    );
+
+    scenario.next_tx(@0xC);
+    let mut holder = stake::new(balance::create_for_testing<RECORDING_SHARE>(100), scenario.ctx());
+    pool.register_stake(&mut holder);
+    action::redeem_settled_value_and_deposit_for_testing(&mut recording, &admin_cap, &mut pool, 321);
+    let action_events = event::events_by_type<
+        action::RecordingFundsDepositedEvent<
+            RECORDING_SHARE,
+            COMPOSITION_SHARE,
+            CURRENCY,
+        >
+    >();
+    assert_eq!(action_events.length(), 1);
+    let (_, _, _, _, amount, balance_before, balance_after, staked, _, _, _, _, deposits_before, deposits_after) =
+        action::funds_deposited_event_fields(&action_events[0]);
+    assert_eq!(amount, 321);
+    assert_eq!(balance_before, 0);
+    assert_eq!(balance_after, 321);
+    assert_eq!(staked, 100);
+    assert_eq!(deposits_before, 0);
+    assert_eq!(deposits_after, 321);
+    assert_eq!(pool.cumulative_deposits(), 321);
+    let reward = pool.claim_rewards(&mut holder);
+    assert_eq!(reward.value(), 321);
+
+    pool.unregister_stake(&mut holder);
+    balance::destroy_for_testing(stake::destroy(holder));
+    balance::destroy_for_testing(reward);
+    destroy(pool);
+    destroy(recording);
+    destroy(admin_cap);
+    scenario.end();
+}
+
+/// A funded redemption followed by the on-chain reader in the same
+/// transaction: the second call sees an empty snapshot and deposits nothing.
+#[test]
+fun second_redeem_all_after_a_funded_redemption_is_a_no_op() {
+    let mut scenario = test_scenario::begin(@0x0);
+    sui::accumulator::create_for_testing(scenario.ctx());
+    scenario.next_tx(@0xA);
+    let (mut recording, admin_cap) = fixture(scenario.ctx());
+    let recording_id = object::id(&recording);
+    let mut pool = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+        &mut recording,
+        &admin_cap,
+    );
+    let mut holder = stake::new(balance::create_for_testing<RECORDING_SHARE>(100), scenario.ctx());
+    pool.register_stake(&mut holder);
+    balance::create_for_testing<CURRENCY>(500).send_funds(recording_id.to_address());
+
+    scenario.next_tx(@0xB);
+    action::redeem_settled_value_and_deposit_for_testing(&mut recording, &admin_cap, &mut pool, 500);
+    let events_after_first = event::num_events();
+    let root = scenario.take_shared<AccumulatorRoot>();
+    action::redeem_all_and_deposit(&mut recording, &admin_cap, &mut pool, &root);
+    assert_eq!(event::num_events(), events_after_first);
+    assert_eq!(pool.cumulative_deposits(), 500);
+    assert_eq!(
+        event::events_by_type<RoyaltyDepositedEvent<RECORDING_SHARE, CURRENCY>>().length(),
+        1,
+    );
+    let reward = pool.claim_rewards(&mut holder);
+    assert_eq!(reward.value(), 500);
+
+    test_scenario::return_shared(root);
+    pool.unregister_stake(&mut holder);
+    balance::destroy_for_testing(stake::destroy(holder));
+    balance::destroy_for_testing(reward);
+    destroy(pool);
+    destroy(recording);
+    destroy(admin_cap);
+    scenario.end();
+}
+
+/// Batch safety: three Recordings cranked in one transaction. One has an
+/// empty settled snapshot and one has funds but no stakers; both pass through
+/// silently while the funded, staked one is deposited in full. The unstaked
+/// one is then redeemed once its stake registers.
+#[test]
+fun batch_with_zero_snapshot_and_zero_staker_items_still_deposits_the_others() {
+    let mut scenario = test_scenario::begin(@0x0);
+    sui::accumulator::create_for_testing(scenario.ctx());
+    scenario.next_tx(@0xA);
+    let (mut recording_a, cap_a) = fixture(scenario.ctx());
+    let (mut recording_b, cap_b) = fixture(scenario.ctx());
+    let (mut recording_c, cap_c) = fixture(scenario.ctx());
+    let mut pool_a = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+        &mut recording_a,
+        &cap_a,
+    );
+    let mut pool_b = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+        &mut recording_b,
+        &cap_b,
+    );
+    let mut pool_c = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+        &mut recording_c,
+        &cap_c,
+    );
+    let mut holder_a = stake::new(balance::create_for_testing<RECORDING_SHARE>(10), scenario.ctx());
+    let mut holder_b = stake::new(balance::create_for_testing<RECORDING_SHARE>(10), scenario.ctx());
+    pool_a.register_stake(&mut holder_a);
+    pool_b.register_stake(&mut holder_b);
+    balance::create_for_testing<CURRENCY>(1_000).send_funds(object::id(&recording_a).to_address());
+    balance::create_for_testing<CURRENCY>(250).send_funds(object::id(&recording_c).to_address());
+
+    scenario.next_tx(@0xB);
+    let root = scenario.take_shared<AccumulatorRoot>();
+    action::redeem_settled_value_and_deposit_for_testing(&mut recording_a, &cap_a, &mut pool_a, 1_000);
+    action::redeem_all_and_deposit(&mut recording_b, &cap_b, &mut pool_b, &root);
+    action::redeem_settled_value_and_deposit_for_testing(&mut recording_c, &cap_c, &mut pool_c, 250);
+
+    let action_events = event::events_by_type<
+        action::RecordingFundsDepositedEvent<
+            RECORDING_SHARE,
+            COMPOSITION_SHARE,
+            CURRENCY,
+        >
+    >();
+    assert_eq!(action_events.length(), 1);
+    let (event_recording_id, _, _, event_pool_id, amount, _, _, _, _, _, _, _, _, _) =
+        action::funds_deposited_event_fields(&action_events[0]);
+    assert_eq!(event_recording_id, object::id(&recording_a).to_address());
+    assert_eq!(event_pool_id, object::id(&pool_a).to_address());
+    assert_eq!(amount, 1_000);
+    assert_eq!(pool_a.cumulative_deposits(), 1_000);
+    assert_eq!(pool_b.cumulative_deposits(), 0);
+    assert_eq!(pool_c.cumulative_deposits(), 0);
+    assert_eq!(pool_c.balance().value(), 0);
+
+    scenario.next_tx(@0xC);
+    let mut holder_c = stake::new(balance::create_for_testing<RECORDING_SHARE>(10), scenario.ctx());
+    pool_c.register_stake(&mut holder_c);
+    action::redeem_settled_value_and_deposit_for_testing(&mut recording_c, &cap_c, &mut pool_c, 250);
+    assert_eq!(pool_c.cumulative_deposits(), 250);
+    let reward_c = pool_c.claim_rewards(&mut holder_c);
+    assert_eq!(reward_c.value(), 250);
+    let reward_a = pool_a.claim_rewards(&mut holder_a);
+    assert_eq!(reward_a.value(), 1_000);
+    assert_eq!(pool_b.pending_rewards(&holder_b), 0);
+
+    test_scenario::return_shared(root);
+    pool_a.unregister_stake(&mut holder_a);
+    pool_b.unregister_stake(&mut holder_b);
+    pool_c.unregister_stake(&mut holder_c);
+    balance::destroy_for_testing(stake::destroy(holder_a));
+    balance::destroy_for_testing(stake::destroy(holder_b));
+    balance::destroy_for_testing(stake::destroy(holder_c));
+    balance::destroy_for_testing(reward_a);
+    balance::destroy_for_testing(reward_c);
+    destroy(pool_a);
+    destroy(pool_b);
+    destroy(pool_c);
+    destroy(recording_a);
+    destroy(recording_b);
+    destroy(recording_c);
+    destroy(cap_a);
+    destroy(cap_b);
+    destroy(cap_c);
+    scenario.end();
+}
+
+/// The unit VM records accumulator withdrawals without checking them against
+/// a balance (`withdraw_from_accumulator_address` only tracks per-transaction
+/// totals), so an overdraw of an empty accumulator succeeds locally. This
+/// pins that boundary explicitly: overdraw rejection is a network property
+/// covered by the testnet checklist, not by this suite. The previous
+/// `expected_failure` overdraw test passed only through its own trailing
+/// `abort`.
+#[test]
+fun overdraw_is_not_enforced_by_the_unit_vm() {
+    let ctx = &mut tx_context::dummy();
+    let (mut recording, admin_cap) = fixture(ctx);
+    let mut pool = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+        &mut recording,
+        &admin_cap,
+    );
+    let mut holder = stake::new(balance::create_for_testing<RECORDING_SHARE>(100), ctx);
+    pool.register_stake(&mut holder);
+    action::redeem_settled_value_and_deposit_for_testing(&mut recording, &admin_cap, &mut pool, 1);
+    assert_eq!(pool.cumulative_deposits(), 1);
+    let reward = pool.claim_rewards(&mut holder);
+    assert_eq!(reward.value(), 1);
+    pool.unregister_stake(&mut holder);
+    balance::destroy_for_testing(stake::destroy(holder));
+    balance::destroy_for_testing(reward);
+    destroy(pool);
+    destroy(recording);
+    destroy(admin_cap);
 }

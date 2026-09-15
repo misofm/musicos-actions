@@ -13,9 +13,13 @@ Production APIs accept the protocol's raw admin capabilities. They contain no Va
 
 Production construction issues exactly one share type, one `TreasuryCap`, and one protocol object for each Composition or Recording admin capability. Tests sometimes create multiple same-typed fixtures to exercise address-level defenses; those fixtures are intentionally stronger than the reachable production model and are not evidence that duplicate same-type production caps can exist.
 
+## Accumulator redemption
+
+Every accumulator redemption is a fixed "redeem all" crank: `redeem_all_and_distribute` (Release) and `redeem_all_and_deposit` (Composition and Recording) take the framework `AccumulatorRoot`, read `balance::settled_funds_value` on chain, and redeem exactly that snapshot. No action accepts a caller-chosen amount. A zero snapshot is an authorized, idempotent no-op that emits no event, and the pool actions are likewise a no-op (with nothing redeemed) while the pool has no registered stake, so one already-cranked or unstaked item never aborts a batched permissionless crank.
+
 ## Accumulator testing
 
-The Move VM covers direct positive redemption after `send_funds` and a transaction boundary, plus empty, zero, and overdraw behavior. It cannot expose a positive `settled_funds_value` consensus snapshot, so composing that reader into each redemption action still requires a Sui network E2E across a real commit boundary; tests do not fake the reader result.
+The Move VM covers the settled-value redemption path with a positive value through each module's private helper (exposed as `redeem_settled_value_and_*_for_testing`), including exact amounts, events, claims, batches with no-op items, and later redemption after a stake registers. It cannot expose a positive `settled_funds_value` consensus snapshot: `test_scenario` discards accumulator events at the end of every transaction and the framework offers no test-only settlement into `AccumulatorRoot`, so the public `redeem_all_*` entry is exercised only against a zero snapshot locally and its funded path is a Sui network E2E. The VM also does not check accumulator withdrawals against a balance, so overdraw rejection is a network property; tests pin both boundaries explicitly rather than faking either.
 
 ## Build
 

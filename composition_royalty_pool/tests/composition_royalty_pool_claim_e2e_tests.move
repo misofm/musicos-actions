@@ -4,8 +4,9 @@
 /// End-to-end royalty claiming through the action, under `test_scenario`:
 /// a published (shared) Composition, its shared canonical pool, two
 /// independent share holders, a third-party payer, and the admin folding
-/// revenue in via both action paths. Every claim amount is the exact
-/// pro-rata floor and the pool ends holding only sub-unit residue.
+/// revenue in via both action paths (coin receipt and the settled-value
+/// redemption helper). Every claim amount is the exact pro-rata floor and
+/// the pool ends holding only sub-unit residue.
 #[test_only]
 module composition_royalty_pool::composition_royalty_pool_claim_e2e_tests;
 
@@ -97,7 +98,7 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
     let mut composition = sc.take_shared<Composition<COMPOSITION_SHARE>>();
     let cap = sc.take_from_sender<CompositionAdminCap<COMPOSITION_SHARE>>();
     let mut pool = sc.take_shared<RoyaltyPool<COMPOSITION_SHARE, CURRENCY>>();
-    action::redeem_and_deposit(&mut composition, &cap, &mut pool, 400);
+    action::redeem_settled_value_and_deposit_for_testing(&mut composition, &cap, &mut pool, 400);
     test_scenario::return_shared(pool);
     test_scenario::return_shared(composition);
     sc.return_to_sender(cap);

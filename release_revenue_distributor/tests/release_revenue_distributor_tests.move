@@ -18,7 +18,6 @@ use vault::vault;
 
 const EUnauthorized: u64 = 0;
 const ENoCoinsToReceive: u64 = 0;
-const ENoValueToRedeem: u64 = 1;
 
 public struct CURRENCY() has drop;
 
@@ -281,11 +280,15 @@ fun funded_accumulator_snapshot_documents_zero_vm_result() {
 }
 
 #[test, expected_failure(abort_code = EUnauthorized, location = release)]
-fun another_releases_cap_is_rejected() {
+fun another_releases_cap_is_rejected_before_a_funded_redemption() {
     let ctx = &mut tx_context::dummy();
     let (mut release, _cap, _, _) = fixture(ctx);
     let (_other_release, other_cap, _, _) = fixture(ctx);
-    action::redeem_and_distribute<CURRENCY>(&mut release, &other_cap, 1);
+    action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(
+        &mut release,
+        &other_cap,
+        1,
+    );
     abort
 }
 
@@ -309,12 +312,21 @@ fun empty_receive_aborts() {
     abort
 }
 
-#[test, expected_failure(abort_code = ENoValueToRedeem, location = action)]
-fun zero_redeem_aborts() {
+/// The private settled-value path is total at zero: no abort and no event
+/// family, matching the on-chain reader's empty snapshot.
+#[test]
+fun settled_value_helper_is_a_silent_no_op_at_zero() {
     let ctx = &mut tx_context::dummy();
     let (mut release, admin_cap, _, _) = fixture(ctx);
-    action::redeem_and_distribute<CURRENCY>(&mut release, &admin_cap, 0);
-    abort
+    let events_before = event::num_events();
+    action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(
+        &mut release,
+        &admin_cap,
+        0,
+    );
+    assert_eq!(event::num_events(), events_before);
+    destroy(release);
+    destroy(admin_cap);
 }
 
 #[test]
@@ -348,10 +360,122 @@ fun redeem_all_is_an_idempotent_no_op_without_settled_funds() {
     scenario.end();
 }
 
-#[test, expected_failure]
-fun overdraw_redeem_aborts_on_empty_accumulator() {
+/// The unit VM records accumulator withdrawals without checking them against
+/// a balance (`withdraw_from_accumulator_address` only tracks per-transaction
+/// totals), so an overdraw of an empty accumulator succeeds locally. This
+/// pins that boundary explicitly: overdraw rejection is a network property
+/// covered by the testnet checklist, not by this suite. The previous
+/// `expected_failure` overdraw test passed only through its own trailing
+/// `abort`.
+#[test]
+fun overdraw_is_not_enforced_by_the_unit_vm() {
     let ctx = &mut tx_context::dummy();
     let (mut release, admin_cap, _, _) = fixture(ctx);
-    action::redeem_and_distribute<CURRENCY>(&mut release, &admin_cap, 1);
-    abort
+    action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(
+        &mut release,
+        &admin_cap,
+        1,
+    );
+    let redeemed = event::events_by_type<action::ReleaseFundsRedeemedEvent<CURRENCY>>();
+    assert_eq!(redeemed.length(), 1);
+    destroy(release);
+    destroy(admin_cap);
+}
+
+/// A funded redemption followed by the on-chain reader in the same
+/// transaction: the second call sees an empty snapshot and adds nothing.
+#[test]
+fun second_redeem_all_after_a_funded_redemption_is_a_no_op() {
+    let mut scenario = test_scenario::begin(@0x0);
+    sui::accumulator::create_for_testing(scenario.ctx());
+    scenario.next_tx(@0xA);
+    let (mut release, admin_cap, _, _) = fixture(scenario.ctx());
+    let release_address = object::id(&release).to_address();
+    balance::create_for_testing<CURRENCY>(10_000).send_funds(release_address);
+
+    scenario.next_tx(@0xB);
+    action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(
+        &mut release,
+        &admin_cap,
+        10_000,
+    );
+    let events_after_first = event::num_events();
+    let root = scenario.take_shared<AccumulatorRoot>();
+    action::redeem_all_and_distribute<CURRENCY>(&mut release, &admin_cap, &root);
+    assert_eq!(event::num_events(), events_after_first);
+    let redeemed = event::events_by_type<action::ReleaseFundsRedeemedEvent<CURRENCY>>();
+    assert_eq!(redeemed.length(), 1);
+    let (_, _, amount) = action::funds_redeemed_event_fields(&redeemed[0]);
+    assert_eq!(amount, 10_000);
+    let summaries = event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>();
+    assert_eq!(summaries.length(), 1);
+    test_scenario::return_shared(root);
+    destroy(release);
+    destroy(admin_cap);
+    scenario.end();
+}
+
+/// Batch safety: three Releases cranked in one transaction. The middle one
+/// has an empty settled snapshot and passes through silently while the other
+/// two are fully distributed with exact amounts.
+#[test]
+fun batch_with_an_empty_snapshot_release_still_distributes_the_others() {
+    let mut scenario = test_scenario::begin(@0x0);
+    sui::accumulator::create_for_testing(scenario.ctx());
+    scenario.next_tx(@0xA);
+    let (mut release_a, cap_a, _, _) = fixture(scenario.ctx());
+    let (mut release_b, cap_b, _, _) = fixture(scenario.ctx());
+    let (mut release_c, cap_c, _, _) = fixture(scenario.ctx());
+    let address_a = object::id(&release_a).to_address();
+    let address_c = object::id(&release_c).to_address();
+    balance::create_for_testing<CURRENCY>(10_000).send_funds(address_a);
+    balance::create_for_testing<CURRENCY>(5_001).send_funds(address_c);
+
+    scenario.next_tx(@0xB);
+    let root = scenario.take_shared<AccumulatorRoot>();
+    action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(
+        &mut release_a,
+        &cap_a,
+        10_000,
+    );
+    action::redeem_all_and_distribute<CURRENCY>(&mut release_b, &cap_b, &root);
+    action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(
+        &mut release_c,
+        &cap_c,
+        5_001,
+    );
+
+    let redeemed = event::events_by_type<action::ReleaseFundsRedeemedEvent<CURRENCY>>();
+    assert_eq!(redeemed.length(), 2);
+    let (redeemed_release_a, _, redeemed_amount_a) = action::funds_redeemed_event_fields(&redeemed[0]);
+    let (redeemed_release_c, _, redeemed_amount_c) = action::funds_redeemed_event_fields(&redeemed[1]);
+    assert_eq!(redeemed_release_a, address_a);
+    assert_eq!(redeemed_amount_a, 10_000);
+    assert_eq!(redeemed_release_c, address_c);
+    assert_eq!(redeemed_amount_c, 5_001);
+    let tracks = event::events_by_type<action::ReleaseTrackRevenueDistributedEvent<CURRENCY>>();
+    assert_eq!(tracks.length(), 4);
+    let summaries = event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>();
+    assert_eq!(summaries.length(), 2);
+    let (summary_release_a, _, input_a, distributed_a, remainder_a) =
+        action::distribution_event_fields(&summaries[0]);
+    let (summary_release_c, _, input_c, distributed_c, remainder_c) =
+        action::distribution_event_fields(&summaries[1]);
+    assert_eq!(summary_release_a, address_a);
+    assert_eq!(input_a, 10_000);
+    assert_eq!(distributed_a, 10_000);
+    assert_eq!(remainder_a, 0);
+    assert_eq!(summary_release_c, address_c);
+    assert_eq!(input_c, 5_001);
+    assert_eq!(distributed_c, 5_000);
+    assert_eq!(remainder_c, 1);
+
+    test_scenario::return_shared(root);
+    destroy(release_a);
+    destroy(release_b);
+    destroy(release_c);
+    destroy(cap_a);
+    destroy(cap_b);
+    destroy(cap_c);
+    scenario.end();
 }
