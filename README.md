@@ -34,3 +34,6 @@ sui move coverage source --module <module-name>
 ```
 
 Licensed under Apache-2.0.
+
+Coin-receipt events retain the consumed coin count, amounts and business identities.
+They do not duplicate a variable-length list of input coin IDs; transaction inputs/effects provide that provenance when needed.

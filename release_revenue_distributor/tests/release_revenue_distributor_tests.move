@@ -61,11 +61,11 @@ fun received_coins_are_combined_split_and_fully_reported() {
 
     let sources = event::events_by_type<action::ReleaseCoinsReceivedEvent<CURRENCY>>();
     assert_eq!(sources.length(), 1);
-    let (source_release, source_admin, source_coin_ids, source_amount) =
+    let (source_release, source_admin, source_coin_count, source_amount) =
         action::coins_received_event_fields(&sources[0]);
     assert_eq!(source_release, release_address);
     assert_eq!(source_admin, admin_cap_id);
-    assert_eq!(source_coin_ids, vector[coin_a_id.to_address(), coin_b_id.to_address()]);
+    assert_eq!(source_coin_count, 2);
     assert_eq!(source_amount, 10_001);
 
     let track_events =
@@ -124,11 +124,11 @@ fun zero_value_coin_keeps_only_the_source_receipt() {
     );
     let sources = event::events_by_type<action::ReleaseCoinsReceivedEvent<CURRENCY>>();
     assert_eq!(sources.length(), 1);
-    let (source_release, source_admin, source_coin_ids, source_amount) =
+    let (source_release, source_admin, source_coin_count, source_amount) =
         action::coins_received_event_fields(&sources[0]);
     assert_eq!(source_release, release_address);
     assert_eq!(source_admin, admin_cap_id);
-    assert_eq!(source_coin_ids, vector[coin_id.to_address()]);
+    assert_eq!(source_coin_count, 1);
     assert_eq!(source_amount, 0);
 
     let tracks = event::events_by_type<action::ReleaseTrackRevenueDistributedEvent<CURRENCY>>();

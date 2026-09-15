@@ -181,7 +181,7 @@ fun receive_deposits_only_into_canonical_pool_and_emits_event() {
         event_carry_after,
         event_cumulative_deposits_before,
         event_cumulative_deposits_after,
-        event_coin_ids,
+        event_coin_count,
     ) = action::coins_deposited_event_fields(&action_events[0]);
     assert_eq!(event_recording_id, recording_id.to_address());
     assert_eq!(event_composition_id, composition_id.to_address());
@@ -197,7 +197,7 @@ fun receive_deposits_only_into_canonical_pool_and_emits_event() {
     assert_eq!(event_carry_after, carry_after);
     assert_eq!(event_cumulative_deposits_before, cumulative_deposits_before);
     assert_eq!(event_cumulative_deposits_after, cumulative_deposits_after);
-    assert_eq!(event_coin_ids, vector[zero_id.to_address(), paid_id.to_address()]);
+    assert_eq!(event_coin_count, 2);
 
     pool.unregister_stake(&mut holder);
     balance::destroy_for_testing(stake::destroy(holder));

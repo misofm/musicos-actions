@@ -18,13 +18,13 @@ dependency mutation. Dependency events remain in their original order.
 | Event | When | Payload |
 |---|---|---|
 | `RecordingRoyaltyPoolCreatedEvent<RecordingShare, CompositionShare, Currency>` | `new_pool` succeeds | Recording, composition relationship, admin-cap, and pool addresses plus the initial pool balance, staked shares, reward index, carry, and cumulative deposits |
-| `RecordingCoinsDepositedEvent<RecordingShare, CompositionShare, Currency>` | `receive_and_deposit` succeeds | Recording, composition relationship, admin-cap, and pool addresses; actual received amount; caller-order receiving coin IDs; and before/after pool snapshots |
+| `RecordingCoinsDepositedEvent<RecordingShare, CompositionShare, Currency>` | `receive_and_deposit` succeeds | Recording, composition relationship, admin-cap, and pool addresses; actual received amount; received coin count; and before/after pool snapshots |
 | `RecordingFundsDepositedEvent<RecordingShare, CompositionShare, Currency>` | `redeem_all_and_deposit` deposits a positive settled snapshot | Recording, composition relationship, admin-cap, and pool addresses; exact redeemed amount from the recording accumulator; and before/after pool snapshots |
 
 `pool_address` is a pure derivation view and emits no event. Failed dependency
 guards and no-op redemptions emit no action event. The recording address is the accumulator source
 for funds events; `composition_id` is relationship metadata. Indexers can use
-`coin_ids` to identify the objects consumed by a receive action.
+transaction inputs/effects to identify the objects consumed by a receive action.
 
 ```sh
 sui move build

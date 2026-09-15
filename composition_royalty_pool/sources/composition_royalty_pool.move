@@ -56,7 +56,7 @@ public struct CompositionCoinsDepositedEvent<phantom CompositionShare, phantom C
     carry_after: u128,
     cumulative_deposits_before: u128,
     cumulative_deposits_after: u128,
-    coin_ids: vector<address>,
+    coin_count: u64,
 }
 
 /// Complete provenance, accumulator source amount, and before/after pool
@@ -118,7 +118,7 @@ public fun receive_and_deposit<CompositionShare, Currency>(
     let reward_per_share_before = pool.cumulative_reward_per_share();
     let carry_before = pool.carry();
     let cumulative_deposits_before = pool.cumulative_deposits();
-    let coin_ids = coins.map_ref!(|coin| sui::transfer::receiving_object_id(coin).to_address());
+    let coin_count = coins.length();
     let uid = composition.uid_mut(admin_cap);
     assert!(!coins.is_empty(), ENoCoinsToReceive);
     let received = hikida::receive_coins_as_balance(uid, coins);
@@ -138,7 +138,7 @@ public fun receive_and_deposit<CompositionShare, Currency>(
         carry_after: pool.carry(),
         cumulative_deposits_before,
         cumulative_deposits_after: pool.cumulative_deposits(),
-        coin_ids,
+        coin_count,
     });
 }
 
@@ -251,7 +251,7 @@ public fun created_event_fields<CompositionShare, Currency>(
 #[test_only]
 public fun coins_deposited_event_fields<CompositionShare, Currency>(
     event: &CompositionCoinsDepositedEvent<CompositionShare, Currency>,
-): (address, address, address, u64, u64, u64, u64, u256, u256, u128, u128, u128, u128, vector<address>) {
+): (address, address, address, u64, u64, u64, u64, u256, u256, u128, u128, u128, u128, u64) {
     (
         event.composition_id,
         event.admin_cap_id,
@@ -266,7 +266,7 @@ public fun coins_deposited_event_fields<CompositionShare, Currency>(
         event.carry_after,
         event.cumulative_deposits_before,
         event.cumulative_deposits_after,
-        event.coin_ids,
+        event.coin_count,
     )
 }
 

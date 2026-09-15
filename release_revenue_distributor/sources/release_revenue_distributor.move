@@ -24,7 +24,7 @@ const ENoCoinsToReceive: u64 = 0;
 public struct ReleaseCoinsReceivedEvent<phantom Currency> has copy, drop {
     release_id: address,
     admin_cap_id: address,
-    coin_ids: vector<address>,
+    coin_count: u64,
     amount: u64,
 }
 
@@ -114,14 +114,14 @@ public fun receive_and_distribute<Currency>(
 ) {
     let release_id = object::id(release).to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
-    let coin_ids = coins.map_ref!(|coin| sui::transfer::receiving_object_id(coin).to_address());
+    let coin_count = coins.length();
     let uid = release.uid_mut(admin_cap);
     assert!(!coins.is_empty(), ENoCoinsToReceive);
     let revenue = hikida::receive_coins_as_balance(uid, coins);
     emit(ReleaseCoinsReceivedEvent<Currency> {
         release_id,
         admin_cap_id,
-        coin_ids,
+        coin_count,
         amount: revenue.value(),
     });
     distribute(release, revenue)
@@ -178,8 +178,8 @@ fun distribute<Currency>(release: &Release, mut revenue: Balance<Currency>) {
 #[test_only]
 public fun coins_received_event_fields<Currency>(
     event: &ReleaseCoinsReceivedEvent<Currency>,
-): (address, address, vector<address>, u64) {
-    (event.release_id, event.admin_cap_id, event.coin_ids, event.amount)
+): (address, address, u64, u64) {
+    (event.release_id, event.admin_cap_id, event.coin_count, event.amount)
 }
 
 #[test_only]
