@@ -4,8 +4,9 @@
 /// Raw-cap Release revenue actions.
 ///
 /// Revenue is split from the immutable Release tracklist and sent to the
-/// corresponding Recording addresses. Callers select only funds already held
-/// by the Release; they cannot select recipients or alter split amounts.
+/// corresponding Recording addresses. Callers either receive coins already
+/// held by the Release or redeem its full settled accumulator snapshot; they
+/// cannot select amounts, recipients, or split values.
 module release_revenue_distributor::release_revenue_distributor;
 
 use hikida::hikida;
@@ -18,8 +19,6 @@ use sui::transfer::Receiving;
 
 /// Explicit coin receipt requires at least one ticket.
 const ENoCoinsToReceive: u64 = 0;
-/// Explicit redemption requires a positive amount; full-settled redemption may be a no-op.
-const ENoValueToRedeem: u64 = 1;
 
 /// Emitted after selected Release-owned coins are received and merged into a balance.
 public struct ReleaseCoinsReceivedEvent<phantom Currency> has copy, drop {
@@ -56,33 +55,24 @@ public struct ReleaseRevenueDistributedEvent<phantom Currency> has copy, drop {
     remainder: u64,
 }
 
-/// Redeem `value` from the Release accumulator and distribute it according to
-/// the immutable tracklist.
-public fun redeem_and_distribute<Currency>(
-    release: &mut Release,
-    admin_cap: &ReleaseAdminCap,
-    value: u64,
-) {
-    let release_id = object::id(release).to_address();
-    let admin_cap_id = object::id(admin_cap).to_address();
-    let uid = release.uid_mut(admin_cap);
-    assert!(value > 0, ENoValueToRedeem);
-    let revenue = hikida::redeem_balance<Currency>(uid, value);
-    emit(ReleaseFundsRedeemedEvent<Currency> {
-        release_id,
-        admin_cap_id,
-        amount: revenue.value(),
-    });
-    distribute(release, revenue)
-}
-
 /// Redeem all Release funds settled at the start of the current consensus
 /// commit and distribute them according to the immutable tracklist.
 ///
-/// The framework snapshot is capped at `u64::MAX`; excess funds, newly sent
-/// funds, and per-track flooring remainder settle for a later call. This fixed
-/// crank prevents permissionless adapters from selecting dust-sized fragments.
-/// A zero settled snapshot is an idempotent no-op.
+/// This is the only accumulator redemption path: callers cannot select an
+/// amount, so a permissionless crank cannot fragment revenue into dust-sized
+/// distributions. The framework snapshot is capped at `u64::MAX`; excess
+/// funds, newly sent funds, and per-track flooring remainder settle for a
+/// later call. A zero settled snapshot is an authorized no-op that emits no
+/// event, so a Release cranked in an earlier consensus commit passes through
+/// a batched crank untouched.
+///
+/// The snapshot is written only by consensus settlement, so within one commit
+/// it is constant: redeeming the same Release twice in one PTB, or from two
+/// transactions in the same commit, withdraws the snapshot twice and the
+/// network fails that whole transaction with `InsufficientFundsForWithdraw`
+/// (a transaction-level failure, not a Move abort). Crankers must include
+/// each object at most once per PTB and treat that status as retry next
+/// commit.
 public fun redeem_all_and_distribute<Currency>(
     release: &mut Release,
     admin_cap: &ReleaseAdminCap,
@@ -93,6 +83,8 @@ public fun redeem_all_and_distribute<Currency>(
 }
 
 /// Redeem a previously read settled snapshot when it is positive.
+/// Authorization is checked before the zero short-circuit so a foreign cap is
+/// rejected even when there is nothing to redeem.
 fun redeem_settled_value_and_distribute<Currency>(
     release: &mut Release,
     admin_cap: &ReleaseAdminCap,
@@ -100,7 +92,16 @@ fun redeem_settled_value_and_distribute<Currency>(
 ) {
     release.authorize(admin_cap);
     if (value == 0) return;
-    redeem_and_distribute<Currency>(release, admin_cap, value)
+    let release_id = object::id(release).to_address();
+    let admin_cap_id = object::id(admin_cap).to_address();
+    let uid = release.uid_mut(admin_cap);
+    let revenue = hikida::redeem_balance<Currency>(uid, value);
+    emit(ReleaseFundsRedeemedEvent<Currency> {
+        release_id,
+        admin_cap_id,
+        amount: revenue.value(),
+    });
+    distribute(release, revenue)
 }
 
 /// Receive selected coins sent to the Release and distribute their combined

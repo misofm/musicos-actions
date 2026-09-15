@@ -10,6 +10,8 @@ module recording_royalty_pool::recording_royalty_pool;
 use hikida::hikida;
 use musicos::recording::{Recording, RecordingAdminCap};
 use royalty_pool::pool::{Self, RoyaltyPool};
+use sui::accumulator::AccumulatorRoot;
+use sui::balance;
 use sui::coin::Coin;
 use sui::event::emit;
 use sui::transfer::Receiving;
@@ -18,8 +20,6 @@ use sui::transfer::Receiving;
 
 /// Empty coin input is rejected by this Action even though Hikida is total.
 const ENoCoinsToReceive: u64 = 0;
-/// Zero-value explicit redemption is rejected by this Action.
-const ENoValueToRedeem: u64 = 1;
 
 // === Events ===
 
@@ -148,16 +148,58 @@ public fun receive_and_deposit<RecordingShare, CompositionShare, Currency>(
     });
 }
 
-/// Redeem `value` from the Recording's funds accumulator and deposit it into
-/// the canonical pool derived from that same Recording.
-/// Emits `RecordingFundsDepositedEvent` after successful deposit.
-public fun redeem_and_deposit<RecordingShare, CompositionShare, Currency>(
+/// Redeem all funds settled at the Recording's address at the start of the
+/// current consensus commit and deposit them into the canonical pool derived
+/// from that same Recording.
+///
+/// This is the only accumulator redemption path: callers cannot select an
+/// amount, so a permissionless crank cannot fragment revenue. The call is an
+/// authorized no-op that emits no event when the settled snapshot is zero or
+/// when the pool has no registered stake. With no stakers nothing is
+/// redeemed: the funds stay in the Recording's accumulator until a stake
+/// registers, rather than being folded into a pool nobody can claim from.
+/// Either no-op lets an item cranked in an earlier consensus commit, or an
+/// unstaked item, pass through a batched crank untouched. The framework
+/// snapshot is capped at `u64::MAX`; excess and newly sent funds settle for a
+/// later call.
+///
+/// The snapshot is written only by consensus settlement, so within one commit
+/// it is constant: redeeming the same Recording twice in one PTB, or from two
+/// transactions in the same commit, withdraws the snapshot twice and the
+/// network fails that whole transaction with `InsufficientFundsForWithdraw`
+/// (a transaction-level failure, not a Move abort). Crankers must include
+/// each object at most once per PTB and treat that status as retry next
+/// commit.
+/// Emits `RecordingFundsDepositedEvent` after a successful deposit.
+public fun redeem_all_and_deposit<RecordingShare, CompositionShare, Currency>(
+    recording: &mut Recording<RecordingShare, CompositionShare>,
+    admin_cap: &RecordingAdminCap<RecordingShare>,
+    pool: &mut RoyaltyPool<RecordingShare, Currency>,
+    root: &AccumulatorRoot,
+) {
+    let value = balance::settled_funds_value<Currency>(root, object::id(recording).to_address());
+    redeem_settled_value_and_deposit<RecordingShare, CompositionShare, Currency>(
+        recording,
+        admin_cap,
+        pool,
+        value,
+    )
+}
+
+/// Redeem a previously read settled snapshot when it is positive and the pool
+/// has registered stake. The pool derivation is checked before either
+/// short-circuit so a wrong pool is rejected even when there is nothing to do.
+fun redeem_settled_value_and_deposit<RecordingShare, CompositionShare, Currency>(
     recording: &mut Recording<RecordingShare, CompositionShare>,
     admin_cap: &RecordingAdminCap<RecordingShare>,
     pool: &mut RoyaltyPool<RecordingShare, Currency>,
     value: u64,
 ) {
     pool.assert_derived_from(object::id(recording));
+    // Intentionally short-circuits before `uid_mut(admin_cap)`: Recording admin
+    // caps are matched by phantom share type only (no object-id check exists
+    // to skip), so returning early is security-neutral.
+    if (value == 0 || pool.staked_shares() == 0) return;
     let recording_id = object::id(recording).to_address();
     let composition_id = recording.composition_id().to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
@@ -168,7 +210,6 @@ public fun redeem_and_deposit<RecordingShare, CompositionShare, Currency>(
     let carry_before = pool.carry();
     let cumulative_deposits_before = pool.cumulative_deposits();
     let uid = recording.uid_mut(admin_cap);
-    assert!(value > 0, ENoValueToRedeem);
     let redeemed = hikida::redeem_balance<Currency>(uid, value);
     let amount = redeemed.value();
     pool.deposit(redeemed);
@@ -258,5 +299,20 @@ public fun funds_deposited_event_fields<RecordingShare, CompositionShare, Curren
         event.carry_after,
         event.cumulative_deposits_before,
         event.cumulative_deposits_after,
+    )
+}
+
+#[test_only]
+public fun redeem_settled_value_and_deposit_for_testing<RecordingShare, CompositionShare, Currency>(
+    recording: &mut Recording<RecordingShare, CompositionShare>,
+    admin_cap: &RecordingAdminCap<RecordingShare>,
+    pool: &mut RoyaltyPool<RecordingShare, Currency>,
+    value: u64,
+) {
+    redeem_settled_value_and_deposit<RecordingShare, CompositionShare, Currency>(
+        recording,
+        admin_cap,
+        pool,
+        value,
     )
 }
