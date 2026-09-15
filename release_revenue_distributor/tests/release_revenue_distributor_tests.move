@@ -106,13 +106,12 @@ fun received_coins_are_combined_split_and_fully_reported() {
 }
 
 #[test]
-fun zero_value_coin_emits_zero_track_and_summary_events() {
+fun zero_value_coin_keeps_only_the_source_receipt() {
     let mut scenario = test_scenario::begin(@0xA);
-    let (mut release, admin_cap, recording_a, recording_b) = fixture(scenario.ctx());
+    let (mut release, admin_cap, _recording_a, _recording_b) = fixture(scenario.ctx());
     let release_id = object::id(&release);
     let release_address = release_id.to_address();
     let admin_cap_id = object::id(&admin_cap).to_address();
-    let composition_id = release.tracks()[0].composition_id().to_address();
     let coin = coin::zero<CURRENCY>(scenario.ctx());
     let coin_id = object::id(&coin);
     transfer::public_transfer(coin, release_id.to_address());
@@ -133,34 +132,9 @@ fun zero_value_coin_emits_zero_track_and_summary_events() {
     assert_eq!(source_amount, 0);
 
     let tracks = event::events_by_type<action::ReleaseTrackRevenueDistributedEvent<CURRENCY>>();
-    assert_eq!(tracks.length(), 2);
-    let (release_a, index_a, composition_a, target_a, split_a, input_a, amount_a) =
-        action::track_event_fields(&tracks[0]);
-    let (release_b, index_b, composition_b, target_b, split_b, input_b, amount_b) =
-        action::track_event_fields(&tracks[1]);
-    assert_eq!(release_a, release_address);
-    assert_eq!(release_b, release_address);
-    assert_eq!(index_a, 0);
-    assert_eq!(index_b, 1);
-    assert_eq!(composition_a, composition_id);
-    assert_eq!(composition_b, composition_id);
-    assert_eq!(target_a, recording_a.to_address());
-    assert_eq!(target_b, recording_b.to_address());
-    assert_eq!(split_a, 6_000);
-    assert_eq!(split_b, 4_000);
-    assert_eq!(input_a, 0);
-    assert_eq!(input_b, 0);
-    assert_eq!(amount_a, 0);
-    assert_eq!(amount_b, 0);
+    assert_eq!(tracks.length(), 0);
     let summaries = event::events_by_type<action::ReleaseRevenueDistributedEvent<CURRENCY>>();
-    assert_eq!(summaries.length(), 1);
-    let (summary_release, track_count, input, distributed, remainder) =
-        action::distribution_event_fields(&summaries[0]);
-    assert_eq!(summary_release, release_address);
-    assert_eq!(track_count, 2);
-    assert_eq!(input, 0);
-    assert_eq!(distributed, 0);
-    assert_eq!(remainder, 0);
+    assert_eq!(summaries.length(), 0);
 
     destroy(release);
     destroy(admin_cap);

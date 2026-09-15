@@ -35,7 +35,8 @@ public struct ReleaseFundsRedeemedEvent<phantom Currency> has copy, drop {
     amount: u64,
 }
 
-/// Emitted for every Release track, including a zero-value rounded split.
+/// Emitted for every Release track when total input is positive, including a
+/// zero-value rounded split.
 public struct ReleaseTrackRevenueDistributedEvent<phantom Currency> has copy, drop {
     release_id: address,
     track_index: u64,
@@ -127,7 +128,9 @@ public fun receive_and_distribute<Currency>(
 }
 
 /// Split a balance using only immutable Release data. Per-track flooring
-/// remainder returns to the Release address for a later distribution.
+/// remainder returns to the Release address for a later distribution. A
+/// zero-value balance is still consumed, but emits only the source receipt
+/// from `receive_and_distribute`; no distribution rows are created.
 fun distribute<Currency>(release: &Release, mut revenue: Balance<Currency>) {
     let release_id = object::id(release).to_address();
     let total_input = revenue.value();
@@ -140,15 +143,17 @@ fun distribute<Currency>(release: &Release, mut revenue: Balance<Currency>) {
         if (amount > 0) {
             revenue.split(amount).send_funds(track.recording_id().to_address());
         };
-        emit(ReleaseTrackRevenueDistributedEvent<Currency> {
-            release_id,
-            track_index,
-            composition_id: track.composition_id().to_address(),
-            recording_id: track.recording_id().to_address(),
-            split_bps: track.split_bps().value(),
-            total_input,
-            amount,
-        });
+        if (total_input > 0) {
+            emit(ReleaseTrackRevenueDistributedEvent<Currency> {
+                release_id,
+                track_index,
+                composition_id: track.composition_id().to_address(),
+                recording_id: track.recording_id().to_address(),
+                split_bps: track.split_bps().value(),
+                total_input,
+                amount,
+            });
+        };
         track_index = track_index + 1;
     });
 
@@ -159,13 +164,15 @@ fun distribute<Currency>(release: &Release, mut revenue: Balance<Currency>) {
         revenue.destroy_zero();
     };
 
-    emit(ReleaseRevenueDistributedEvent<Currency> {
-        release_id,
-        track_count: track_index,
-        total_input,
-        total_distributed,
-        remainder,
-    })
+    if (total_input > 0) {
+        emit(ReleaseRevenueDistributedEvent<Currency> {
+            release_id,
+            track_count: track_index,
+            total_input,
+            total_distributed,
+            remainder,
+        })
+    }
 }
 
 #[test_only]
