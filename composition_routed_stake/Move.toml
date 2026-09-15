@@ -9,4 +9,4 @@ musicos = { git = "https://github.com/misofm/musicos.git", rev = "a8dfc74f2f234e
 hikida = { git = "https://github.com/unconfirmedlabs/hikida.git", rev = "c91d6a0f536a5f1457b342a8838fc1d7ba09212e" }
 royalty_pool = { git = "https://github.com/misofm/royalty-pool.git", rev = "3bfb265aa82e711b407c28849090ee3705ef2c68" }
 routed_stake = { git = "https://github.com/misofm/routed-stake.git", rev = "1aafaa96c6cc2cebb2ce08e79f149302d097d71d" }
-vault = { git = "https://github.com/misofm/vault.git", rev = "987f774eb1b4f692e0b3974d6a5acc55c8004cc5", modes = ["test"] }
+vault = { git = "https://github.com/misofm/vault.git", rev = "b1e49bf8e8e2fc174f29cc685ac72c9d18b9db75", modes = ["test"] }
