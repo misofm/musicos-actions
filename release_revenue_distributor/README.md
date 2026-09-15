@@ -1,6 +1,6 @@
 # Release Revenue Distributor
 
-Raw-cap actions accept the Release capability as `admin_cap`, receive or redeem Release-held revenue, and route it to the Recording addresses fixed by the immutable tracklist. A successful receive emits one `ReleaseCoinsReceivedEvent` with the Release and admin-cap addresses, receiving coin IDs in caller order, and the combined amount. A successful accumulator redemption emits one `ReleaseFundsRedeemedEvent` with the same authorization identities and redeemed amount.
+Raw-cap actions accept the Release capability as `admin_cap`, receive or redeem Release-held revenue, and route it to the Recording addresses fixed by the immutable tracklist. A successful receive emits one `ReleaseCoinsReceivedEvent` with the Release and admin-cap addresses, received coin count, and the combined amount. A successful accumulator redemption emits one `ReleaseFundsRedeemedEvent` with the same authorization identities and redeemed amount.
 
 Each positive-input distribution then emits one `ReleaseTrackRevenueDistributedEvent` per track, in tracklist order, including the Release address, track index, composition and recording addresses, split basis points, total input, and rounded amount. It emits one `ReleaseRevenueDistributedEvent` summary with track count, total input, total distributed, and remainder. All event IDs are primitive addresses. Flooring remainder returns to the Release.
 

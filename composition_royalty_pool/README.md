@@ -18,11 +18,11 @@ dependency mutation. Dependency events remain in their original order.
 | Event | When | Payload |
 |---|---|---|
 | `CompositionRoyaltyPoolCreatedEvent<CompositionShare, Currency>` | `new_pool` succeeds | Composition, admin-cap, and pool addresses plus the initial pool balance, staked shares, reward index, carry, and cumulative deposits |
-| `CompositionCoinsDepositedEvent<CompositionShare, Currency>` | `receive_and_deposit` succeeds | Composition, admin-cap, and pool addresses; actual received amount; caller-order receiving coin IDs; and before/after pool snapshots |
+| `CompositionCoinsDepositedEvent<CompositionShare, Currency>` | `receive_and_deposit` succeeds | Composition, admin-cap, and pool addresses; actual received amount; received coin count; and before/after pool snapshots |
 | `CompositionFundsDepositedEvent<CompositionShare, Currency>` | `redeem_all_and_deposit` deposits a positive settled snapshot | Composition, admin-cap, and pool addresses; exact redeemed amount from the accumulator; and before/after pool snapshots |
 
 `pool_address` is a pure derivation view and emits no event. Failed dependency
-guards and no-op redemptions emit no action event. Indexers can use `coin_ids` to identify the
+guards and no-op redemptions emit no action event. Indexers can use transaction inputs/effects to identify the
 objects consumed by a receive action; the funds event identifies the
 accumulator source by the composition address.
 
