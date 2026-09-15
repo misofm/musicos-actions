@@ -25,7 +25,7 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.mainnet.composition_routed_stake]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "1D32FD6BC0A4D0128C6C4E15DAFE09501888CA1BF2792169ACFC78FA13D11536"
+manifest_digest = "709CB25D6155769670BD119D7461DEE33C62085E1C385265817909EC6D22C71F"
 deps = { hikida = "hikida", musicos = "musicos", routed_stake = "routed_stake", royalty_pool = "royalty_pool", std = "MoveStdlib", sui = "Sui", vault = "vault" }
 
 [pinned.mainnet.hikida]
@@ -41,7 +41,7 @@ manifest_digest = "43EF3B938D7EEE22C9657EB418DA5C9E9984D02D725538A82E7D3268322F9
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.routed_stake]
-source = { git = "https://github.com/misofm/routed-stake.git", subdir = ".", rev = "1b78a928211ffc1eb3a15cc89d808234eb8ccc59" }
+source = { git = "https://github.com/misofm/routed-stake.git", subdir = ".", rev = "1aafaa96c6cc2cebb2ce08e79f149302d097d71d" }
 use_environment = "mainnet"
 manifest_digest = "8B6F123398F8E018C070C0E7BA62A02D605EA7EB0268B08045FB823E653D696F"
 deps = { royalty_pool = "royalty_pool", std = "MoveStdlib", sui = "Sui" }
@@ -85,7 +85,7 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.composition_routed_stake]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "CAFD129A86A0BE05A8B91AE551AC2AEA7C45DB4E8B621D277DAD6235E9F9A393"
+manifest_digest = "8B74489B6639C57AF5A70DED78985BFD7232238E5D59DDD485720AE2DB0B8EDF"
 deps = { hikida = "hikida", musicos = "musicos", routed_stake = "routed_stake", royalty_pool = "royalty_pool", std = "MoveStdlib", sui = "Sui", vault = "vault" }
 
 [pinned.testnet.hikida]
@@ -101,7 +101,7 @@ manifest_digest = "6746D45CC0E1EB869033BB4778064980963001D5C9C151F74A7A7D1DDEAE0
 deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.routed_stake]
-source = { git = "https://github.com/misofm/routed-stake.git", subdir = ".", rev = "1b78a928211ffc1eb3a15cc89d808234eb8ccc59" }
+source = { git = "https://github.com/misofm/routed-stake.git", subdir = ".", rev = "1aafaa96c6cc2cebb2ce08e79f149302d097d71d" }
 use_environment = "testnet"
 manifest_digest = "9BF61110C88485C4A182485D63040BCE907062D6D5D9E3501C8AB7716D1C3245"
 deps = { royalty_pool = "royalty_pool", std = "MoveStdlib", sui = "Sui" }
