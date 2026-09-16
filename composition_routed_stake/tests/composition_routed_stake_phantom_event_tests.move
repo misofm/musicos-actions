@@ -145,10 +145,10 @@ fun all_event_families_keep_recording_composition_and_currency_phantoms_separate
     let a_id = object::id(&a).to_address(); let b_id = object::id(&b).to_address(); let c_id = object::id(&c).to_address();
     let a_cap_id = object::id(&a_cap).to_address(); let b_cap_id = object::id(&b_cap).to_address(); let c_cap_id = object::id(&c_cap).to_address();
     let a_recording_id = object::id(&a_recording).to_address(); let b_recording_id = object::id(&b_recording).to_address(); let c_recording_id = object::id(&c_recording).to_address();
-    let mut a_u1 = pool::new<R1, U1>(a_recording.uid_mut(&a_recording_cap));
-    let mut a_u2 = pool::new<R1, U2>(a_recording.uid_mut(&a_recording_cap));
-    let mut b_u1 = pool::new<R2, U1>(b_recording.uid_mut(&b_recording_cap));
-    let mut c_u1 = pool::new<R1, U1>(c_recording.uid_mut(&c_recording_cap));
+    let mut a_u1 = pool::new_for_testing<R1, U1>(a_recording.uid_mut(&a_recording_cap));
+    let mut a_u2 = pool::new_for_testing<R1, U2>(a_recording.uid_mut(&a_recording_cap));
+    let mut b_u1 = pool::new_for_testing<R2, U1>(b_recording.uid_mut(&b_recording_cap));
+    let mut c_u1 = pool::new_for_testing<R1, U1>(c_recording.uid_mut(&c_recording_cap));
     balance::create_for_testing<R1>(11).send_funds(a_id);
     balance::create_for_testing<R2>(22).send_funds(b_id);
     balance::create_for_testing<R1>(33).send_funds(c_id);

@@ -13,6 +13,7 @@ use royalty_pool::pool::{Self, RoyaltyPool};
 use sui::accumulator::AccumulatorRoot;
 use sui::balance;
 use sui::coin::Coin;
+use sui::coin_registry::Currency as ShareCurrency;
 use sui::event::emit;
 use sui::transfer::Receiving;
 
@@ -85,11 +86,12 @@ public struct RecordingFundsDepositedEvent<phantom RecordingShare, phantom Compo
 public fun new_pool<RecordingShare, CompositionShare, Currency>(
     recording: &mut Recording<RecordingShare, CompositionShare>,
     admin_cap: &RecordingAdminCap<RecordingShare>,
+    share_currency: &ShareCurrency<RecordingShare>,
 ): RoyaltyPool<RecordingShare, Currency> {
     let recording_id = object::id(recording).to_address();
     let composition_id = recording.composition_id().to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
-    let pool = pool::new(recording.uid_mut(admin_cap));
+    let pool = pool::new(recording.uid_mut(admin_cap), share_currency);
     emit(RecordingRoyaltyPoolCreatedEvent<RecordingShare, CompositionShare, Currency> {
         recording_id,
         composition_id,

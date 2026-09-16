@@ -57,8 +57,8 @@ fun generic_event_dimensions_are_independent() {
         fixture<R1, C1>(ctx);
     let (mut composition_two, cap_two, mut recording_two, recording_cap_two) =
         fixture<R2, C2>(ctx);
-    let mut pool_one = pool::new<R1, K1>(recording_one.uid_mut(&recording_cap_one));
-    let mut pool_two = pool::new<R2, K2>(recording_two.uid_mut(&recording_cap_two));
+    let mut pool_one = pool::new_for_testing<R1, K1>(recording_one.uid_mut(&recording_cap_one));
+    let mut pool_two = pool::new_for_testing<R2, K2>(recording_two.uid_mut(&recording_cap_two));
     balance::create_for_testing<R1>(11).send_funds(object::id(&composition_one).to_address());
     balance::create_for_testing<R2>(22).send_funds(object::id(&composition_two).to_address());
 
@@ -148,7 +148,7 @@ fun supplied_foreign_cap_id_is_provenance_for_all_five_actions() {
     let (foreign_composition, foreign_cap) = composition::new_for_testing<C1>("Foreign", 2_000, ctx);
     let foreign_cap_id = object::id(&foreign_cap).to_address();
     let composition_id = object::id(&composition).to_address();
-    let mut pool = pool::new<R1, K1>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<R1, K1>(recording.uid_mut(&recording_cap));
     balance::create_for_testing<R1>(5).send_funds(composition_id);
     let mut routed = action::create_stake(&mut composition, &foreign_cap, &recording, 5, ctx);
     let created = event::events_by_type<action::CompositionRoutedStakeCreatedEvent<R1, C1>>();
@@ -201,7 +201,7 @@ fun max_u64_principal_round_trips_with_fixed_payload() {
 fun unregister_without_registration_reaches_dependency_guard() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, composition_cap, mut recording, recording_cap) = fixture<R1, C1>(ctx);
-    let mut pool = pool::new<R1, K1>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<R1, K1>(recording.uid_mut(&recording_cap));
     balance::create_for_testing<R1>(5).send_funds(object::id(&composition).to_address());
     let mut routed = action::create_stake(
         &mut composition, &composition_cap, &recording, 5, ctx,
@@ -229,8 +229,8 @@ fun unstake_empty_wrapper_reaches_dependency_guard() {
 fun views_stake_address_and_direct_sweep_are_adapter_silent() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, composition_cap, mut recording, recording_cap) = fixture<R1, C1>(ctx);
-    let mut source = pool::new<R1, K1>(recording.uid_mut(&recording_cap));
-    let mut destination = pool::new<C1, K1>(composition.uid_mut(&composition_cap));
+    let mut source = pool::new_for_testing<R1, K1>(recording.uid_mut(&recording_cap));
+    let mut destination = pool::new_for_testing<C1, K1>(composition.uid_mut(&composition_cap));
     balance::create_for_testing<R1>(8).send_funds(object::id(&composition).to_address());
     let mut routed = action::create_stake(
         &mut composition, &composition_cap, &recording, 8, ctx,

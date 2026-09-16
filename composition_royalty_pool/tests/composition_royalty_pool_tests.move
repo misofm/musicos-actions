@@ -5,6 +5,8 @@
 module composition_royalty_pool::composition_royalty_pool_tests;
 
 use composition_royalty_pool::composition_royalty_pool as action;
+use composition_royalty_pool::share as test_share;
+use composition_royalty_pool::share::Share as COMPOSITION_SHARE;
 use musicos::composition::{Self, Composition, CompositionAdminCap};
 use royalty_pool::pool::{Self, RoyaltyDepositedEvent, RoyaltyPool, RoyaltyPoolCreatedEvent};
 use royalty_pool::stake;
@@ -19,12 +21,29 @@ use vault::vault;
 const ENoCoinsToReceive: u64 = 0;
 const EPoolNotDerivedFromParent: u64 = 0;
 
-public struct COMPOSITION_SHARE() has drop;
 public struct FOREIGN_SHARE() has drop;
 public struct CURRENCY() has drop;
 
 fun fixture(ctx: &mut TxContext): (Composition<COMPOSITION_SHARE>, CompositionAdminCap<COMPOSITION_SHARE>) {
     composition::new_for_testing<COMPOSITION_SHARE>("Composition", 1_000, ctx)
+}
+
+/// Exercise the production adapter constructor with a fully initialized,
+/// fixed-supply share currency while keeping currency setup out of each test.
+fun new_pool<Currency>(
+    composition: &mut Composition<COMPOSITION_SHARE>,
+    admin_cap: &CompositionAdminCap<COMPOSITION_SHARE>,
+): RoyaltyPool<COMPOSITION_SHARE, Currency> {
+    let ctx = &mut tx_context::dummy();
+    let (share_currency, supply) = test_share::bootstrap_currency(ctx);
+    let pool = action::new_pool<COMPOSITION_SHARE, Currency>(
+        composition,
+        admin_cap,
+        &share_currency,
+    );
+    balance::destroy_for_testing(supply);
+    destroy(share_currency);
+    pool
 }
 
 #[test]
@@ -36,7 +55,7 @@ fun new_pool_is_returned_unshared_with_exact_parent_and_event() {
     let events_before_address = event::num_events();
     let expected = action::pool_address<COMPOSITION_SHARE, CURRENCY>(&composition);
     assert_eq!(event::num_events(), events_before_address);
-    let pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
 
     assert_eq!(object::id(&pool).to_address(), expected);
     pool.assert_derived_from(composition_id);
@@ -72,12 +91,25 @@ fun new_pool_is_returned_unshared_with_exact_parent_and_event() {
     destroy(admin_cap);
 }
 
+#[test, expected_failure(abort_code = 7, location = royalty_pool::pool)]
+fun new_pool_rejects_uninitialized_share_currency() {
+    let ctx = &mut tx_context::dummy();
+    let (mut composition, admin_cap) = fixture(ctx);
+    let (share_currency, _treasury_cap, _metadata_cap) = test_share::new_currency(ctx);
+    let _pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(
+        &mut composition,
+        &admin_cap,
+        &share_currency,
+    );
+    abort
+}
+
 #[test]
 fun fresh_stake_registers_before_pool_is_shared() {
     let mut scenario = test_scenario::begin(@0xA);
     let (mut composition, admin_cap) = fixture(scenario.ctx());
     let expected = action::pool_address<COMPOSITION_SHARE, CURRENCY>(&composition);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let mut holder = stake::new(
         balance::create_for_testing<COMPOSITION_SHARE>(100),
         scenario.ctx(),
@@ -103,7 +135,7 @@ fun receive_deposits_only_into_canonical_pool_and_emits_event() {
     let (mut composition, admin_cap) = fixture(scenario.ctx());
     let composition_id = object::id(&composition);
     let admin_cap_id = object::id(&admin_cap).to_address();
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let mut holder = stake::new(
         balance::create_for_testing<COMPOSITION_SHARE>(100),
         scenario.ctx(),
@@ -193,7 +225,7 @@ fun settled_value_helper_deposits_full_amount_and_emits_event() {
     let mut scenario = test_scenario::begin(@0xA);
     let (mut composition, admin_cap) = fixture(scenario.ctx());
     let composition_id = object::id(&composition);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(
+    let mut pool = new_pool<CURRENCY>(
         &mut composition,
         &admin_cap,
     );
@@ -267,7 +299,7 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
     let mut registry = vault::new_registry_for_testing(ctx);
     let (mut vault, vault_admin_cap) = vault::new(&mut registry, admin_cap, ctx);
     let (borrowed_cap, receipt) = vault.borrow_as_admin(&vault_admin_cap);
-    let pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(
+    let pool = new_pool<CURRENCY>(
         &mut composition,
         &borrowed_cap,
     );
@@ -292,8 +324,8 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
 fun duplicate_pool_derivation_claim_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap) = fixture(ctx);
-    let _first = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
-    let _second = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let _first = new_pool<CURRENCY>(&mut composition, &admin_cap);
+    let _second = new_pool<CURRENCY>(&mut composition, &admin_cap);
     abort
 }
 
@@ -303,7 +335,7 @@ fun receive_rejects_wrong_parent_pool() {
     let (mut composition, admin_cap) = fixture(ctx);
     let (mut foreign, foreign_cap) =
         composition::new_for_testing<FOREIGN_SHARE>("Foreign", 1_000, ctx);
-    let mut wrong_pool = pool::new<COMPOSITION_SHARE, CURRENCY>(foreign.uid_mut(&foreign_cap));
+    let mut wrong_pool = pool::new_for_testing<COMPOSITION_SHARE, CURRENCY>(foreign.uid_mut(&foreign_cap));
     action::receive_and_deposit(&mut composition, &admin_cap, &mut wrong_pool, vector[]);
     abort
 }
@@ -312,7 +344,7 @@ fun receive_rejects_wrong_parent_pool() {
 fun empty_receive_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap) = fixture(ctx);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     action::receive_and_deposit(&mut composition, &admin_cap, &mut pool, vector[]);
     abort
 }
@@ -322,7 +354,7 @@ fun receive_with_no_staked_shares_aborts_on_pool_guard() {
     let mut scenario = test_scenario::begin(@0xA);
     let (mut composition, admin_cap) = fixture(scenario.ctx());
     let composition_id = object::id(&composition);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let paid = coin::from_balance(balance::create_for_testing<CURRENCY>(1), scenario.ctx());
     let paid_id = object::id(&paid);
     transfer::public_transfer(paid, composition_id.to_address());
@@ -343,7 +375,7 @@ fun receive_zero_value_with_active_stake_aborts_on_pool_guard() {
     let mut scenario = test_scenario::begin(@0xA);
     let (mut composition, admin_cap) = fixture(scenario.ctx());
     let composition_id = object::id(&composition);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let mut holder = stake::new(
         balance::create_for_testing<COMPOSITION_SHARE>(100),
         scenario.ctx(),
@@ -372,7 +404,7 @@ fun redeem_all_rejects_wrong_parent_pool_even_on_empty_snapshot() {
     let (mut composition, admin_cap) = fixture(scenario.ctx());
     let (mut foreign, foreign_cap) =
         composition::new_for_testing<FOREIGN_SHARE>("Foreign", 1_000, scenario.ctx());
-    let mut wrong_pool = pool::new<COMPOSITION_SHARE, CURRENCY>(foreign.uid_mut(&foreign_cap));
+    let mut wrong_pool = pool::new_for_testing<COMPOSITION_SHARE, CURRENCY>(foreign.uid_mut(&foreign_cap));
     let root = scenario.take_shared<AccumulatorRoot>();
     action::redeem_all_and_deposit(&mut composition, &admin_cap, &mut wrong_pool, &root);
     abort
@@ -384,7 +416,7 @@ fun settled_value_helper_rejects_wrong_parent_pool() {
     let (mut composition, admin_cap) = fixture(ctx);
     let (mut foreign, foreign_cap) =
         composition::new_for_testing<FOREIGN_SHARE>("Foreign", 1_000, ctx);
-    let mut wrong_pool = pool::new<COMPOSITION_SHARE, CURRENCY>(foreign.uid_mut(&foreign_cap));
+    let mut wrong_pool = pool::new_for_testing<COMPOSITION_SHARE, CURRENCY>(foreign.uid_mut(&foreign_cap));
     action::redeem_settled_value_and_deposit_for_testing(
         &mut composition,
         &admin_cap,
@@ -402,7 +434,7 @@ fun redeem_all_is_an_idempotent_no_op_without_settled_funds() {
     sui::accumulator::create_for_testing(scenario.ctx());
     scenario.next_tx(@0xA);
     let (mut composition, admin_cap) = fixture(scenario.ctx());
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let mut holder = stake::new(balance::create_for_testing<COMPOSITION_SHARE>(100), scenario.ctx());
     pool.register_stake(&mut holder);
     let root = scenario.take_shared<AccumulatorRoot>();
@@ -428,7 +460,7 @@ fun redeem_all_is_an_idempotent_no_op_without_settled_funds() {
 fun settled_value_helper_is_a_silent_no_op_at_zero() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap) = fixture(ctx);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let mut holder = stake::new(balance::create_for_testing<COMPOSITION_SHARE>(100), ctx);
     pool.register_stake(&mut holder);
     let events_before = event::num_events();
@@ -450,7 +482,7 @@ fun zero_stakers_is_a_no_op_and_funds_remain_redeemable_after_a_stake_registers(
     let mut scenario = test_scenario::begin(@0xA);
     let (mut composition, admin_cap) = fixture(scenario.ctx());
     let composition_id = object::id(&composition);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     balance::create_for_testing<CURRENCY>(321).send_funds(composition_id.to_address());
 
     scenario.next_tx(@0xB);
@@ -507,7 +539,7 @@ fun second_redeem_all_in_the_same_tx_sees_the_vm_zero_snapshot() {
     scenario.next_tx(@0xA);
     let (mut composition, admin_cap) = fixture(scenario.ctx());
     let composition_id = object::id(&composition);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let mut holder = stake::new(balance::create_for_testing<COMPOSITION_SHARE>(100), scenario.ctx());
     pool.register_stake(&mut holder);
     balance::create_for_testing<CURRENCY>(500).send_funds(composition_id.to_address());
@@ -546,7 +578,7 @@ fun second_redeem_all_in_the_same_tx_sees_the_vm_zero_snapshot() {
 fun same_tx_duplicate_redemptions_withdraw_twice_in_the_unit_vm() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap) = fixture(ctx);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let mut holder = stake::new(balance::create_for_testing<COMPOSITION_SHARE>(100), ctx);
     pool.register_stake(&mut holder);
     action::redeem_settled_value_and_deposit_for_testing(&mut composition, &admin_cap, &mut pool, 321);
@@ -573,7 +605,7 @@ fun same_tx_duplicate_redemptions_withdraw_twice_in_the_unit_vm() {
 fun u64_max_snapshot_deposits_without_abort() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap) = fixture(ctx);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let mut holder = stake::new(balance::create_for_testing<COMPOSITION_SHARE>(100), ctx);
     pool.register_stake(&mut holder);
     let max = std::u64::max_value!();
@@ -598,13 +630,28 @@ fun u64_max_snapshot_deposits_without_abort() {
 fun batch_with_zero_snapshot_and_zero_staker_items_still_deposits_the_others() {
     let mut scenario = test_scenario::begin(@0x0);
     sui::accumulator::create_for_testing(scenario.ctx());
+    let (share_currency, supply) = test_share::bootstrap_currency(scenario.ctx());
     scenario.next_tx(@0xA);
     let (mut composition_a, cap_a) = fixture(scenario.ctx());
     let (mut composition_b, cap_b) = fixture(scenario.ctx());
     let (mut composition_c, cap_c) = fixture(scenario.ctx());
-    let mut pool_a = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition_a, &cap_a);
-    let mut pool_b = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition_b, &cap_b);
-    let mut pool_c = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition_c, &cap_c);
+    let mut pool_a = action::new_pool<COMPOSITION_SHARE, CURRENCY>(
+        &mut composition_a,
+        &cap_a,
+        &share_currency,
+    );
+    let mut pool_b = action::new_pool<COMPOSITION_SHARE, CURRENCY>(
+        &mut composition_b,
+        &cap_b,
+        &share_currency,
+    );
+    let mut pool_c = action::new_pool<COMPOSITION_SHARE, CURRENCY>(
+        &mut composition_c,
+        &cap_c,
+        &share_currency,
+    );
+    balance::destroy_for_testing(supply);
+    destroy(share_currency);
     let mut holder_a = stake::new(balance::create_for_testing<COMPOSITION_SHARE>(10), scenario.ctx());
     let mut holder_b = stake::new(balance::create_for_testing<COMPOSITION_SHARE>(10), scenario.ctx());
     pool_a.register_stake(&mut holder_a);
@@ -674,7 +721,7 @@ fun batch_with_zero_snapshot_and_zero_staker_items_still_deposits_the_others() {
 fun overdraw_is_not_enforced_by_the_unit_vm() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap) = fixture(ctx);
-    let mut pool = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let mut pool = new_pool<CURRENCY>(&mut composition, &admin_cap);
     let mut holder = stake::new(balance::create_for_testing<COMPOSITION_SHARE>(100), ctx);
     pool.register_stake(&mut holder);
     action::redeem_settled_value_and_deposit_for_testing(&mut composition, &admin_cap, &mut pool, 1);

@@ -14,6 +14,7 @@ use royalty_pool::pool::{Self, RoyaltyPool};
 use sui::accumulator::AccumulatorRoot;
 use sui::balance;
 use sui::coin::Coin;
+use sui::coin_registry::Currency as ShareCurrency;
 use sui::event::emit;
 use sui::transfer::Receiving;
 
@@ -83,10 +84,11 @@ public struct CompositionFundsDepositedEvent<phantom CompositionShare, phantom C
 public fun new_pool<CompositionShare, Currency>(
     composition: &mut Composition<CompositionShare>,
     admin_cap: &CompositionAdminCap<CompositionShare>,
+    share_currency: &ShareCurrency<CompositionShare>,
 ): RoyaltyPool<CompositionShare, Currency> {
     let composition_id = object::id(composition).to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
-    let pool = pool::new(composition.uid_mut(admin_cap));
+    let pool = pool::new(composition.uid_mut(admin_cap), share_currency);
     emit(CompositionRoyaltyPoolCreatedEvent<CompositionShare, Currency> {
         composition_id,
         admin_cap_id,

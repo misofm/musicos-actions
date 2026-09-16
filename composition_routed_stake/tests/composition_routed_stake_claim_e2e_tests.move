@@ -44,8 +44,8 @@ fun setup(sc: &mut Scenario): ID {
     let composition_id = object::id(&composition);
     let (mut recording, rcap) =
         recording::new_for_testing<RECORDING_SHARE, COMPOSITION_SHARE>(composition_id, sc.ctx());
-    pool::new<COMPOSITION_SHARE, CURRENCY>(composition.uid_mut(&ccap)).share();
-    pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&rcap)).share();
+    pool::new_for_testing<COMPOSITION_SHARE, CURRENCY>(composition.uid_mut(&ccap)).share();
+    pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&rcap)).share();
     let clock = clock::create_for_testing(sc.ctx());
     composition.publish(&ccap, &clock);
     recording.publish(&rcap, &clock);

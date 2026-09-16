@@ -2,6 +2,11 @@
 
 Raw-cap actions for creating and funding the canonical `RoyaltyPool` derived from a musicos `Composition`. `new_pool` returns the pool unshared so a caller can register a fresh stake before calling `royalty_pool::pool::share`.
 
+`new_pool(composition, admin_cap, share_currency)` requires the final argument
+to be the registered `Currency<CompositionShare>` for a verified six-decimal,
+fixed-supply share. Pool creation rejects an arbitrary or incompletely
+initialized coin type.
+
 Production construction guarantees one `CompositionShare` type, `TreasuryCap`, Composition, and matching capability passed as `admin_cap`. Same-typed duplicate fixtures are test-only tools for exercising address checks, not reachable production attacks.
 
 `redeem_all_and_deposit` is the only accumulator redemption path: it takes the framework `AccumulatorRoot`, reads the Composition's settled snapshot on chain, and deposits exactly that value. It is an authorized no-op that emits no event when the snapshot is zero or when the pool has no registered stake; with no stakers nothing is redeemed, so the funds stay in the Composition's accumulator until a stake registers instead of being folded into a pool nobody can claim from. Either no-op lets a batched permissionless crank continue past a Composition cranked in an earlier consensus commit, or an unstaked one.
