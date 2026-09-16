@@ -11,6 +11,8 @@
 module composition_royalty_pool::composition_royalty_pool_claim_e2e_tests;
 
 use composition_royalty_pool::composition_royalty_pool as action;
+use composition_royalty_pool::share as test_share;
+use composition_royalty_pool::share::Share as COMPOSITION_SHARE;
 use musicos::composition::{Self, Composition, CompositionAdminCap};
 use royalty_pool::pool::RoyaltyPool;
 use royalty_pool::stake::{Self, Stake};
@@ -25,7 +27,6 @@ const HOLDER_A: address = @0xA;
 const HOLDER_B: address = @0xB;
 const PAYER: address = @0x9A;
 
-public struct COMPOSITION_SHARE() has drop;
 public struct CURRENCY() has drop;
 
 fun holder_registers(sc: &mut Scenario, holder: address, shares: u64) {
@@ -58,7 +59,15 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
     let (mut composition, cap) =
         composition::new_for_testing<COMPOSITION_SHARE>("Composition", 1_000, sc.ctx());
     let composition_id = object::id(&composition);
-    action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &cap).share();
+    let (share_currency, supply) =
+        test_share::bootstrap_currency(&mut tx_context::dummy());
+    action::new_pool<COMPOSITION_SHARE, CURRENCY>(
+        &mut composition,
+        &cap,
+        &share_currency,
+    ).share();
+    balance::destroy_for_testing(supply);
+    destroy(share_currency);
     let clock = clock::create_for_testing(sc.ctx());
     composition.publish(&cap, &clock);
     clock.destroy_for_testing();

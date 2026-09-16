@@ -11,6 +11,8 @@ module recording_royalty_pool::recording_royalty_pool_claim_e2e_tests;
 
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use recording_royalty_pool::recording_royalty_pool as action;
+use recording_royalty_pool::share as test_share;
+use recording_royalty_pool::share::Share as RECORDING_SHARE;
 use royalty_pool::pool::RoyaltyPool;
 use royalty_pool::stake::{Self, Stake};
 use std::unit_test::{assert_eq, destroy};
@@ -24,7 +26,6 @@ const HOLDER_A: address = @0xA;
 const HOLDER_B: address = @0xB;
 const PAYER: address = @0x9A;
 
-public struct RECORDING_SHARE() has drop;
 public struct COMPOSITION_SHARE() has drop;
 public struct CURRENCY() has drop;
 
@@ -58,7 +59,15 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
         sc.ctx(),
     );
     let recording_id = object::id(&recording);
-    action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(&mut recording, &cap).share();
+    let (share_currency, supply) =
+        test_share::bootstrap_currency(&mut tx_context::dummy());
+    action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+        &mut recording,
+        &cap,
+        &share_currency,
+    ).share();
+    balance::destroy_for_testing(supply);
+    destroy(share_currency);
     let clock = clock::create_for_testing(sc.ctx());
     recording.publish(&cap, &clock);
     clock.destroy_for_testing();

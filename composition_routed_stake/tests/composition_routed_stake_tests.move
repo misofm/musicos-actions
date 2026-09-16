@@ -53,9 +53,9 @@ fun complete_return_oriented_lifecycle_routes_rewards_and_releases_principal() {
     let (mut composition, composition_cap, mut recording, recording_cap) = fixture(ctx);
     let composition_id = object::id(&composition);
     let mut recording_pool =
-        pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+        pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
     let mut composition_pool =
-        pool::new<COMPOSITION_SHARE, CURRENCY>(composition.uid_mut(&composition_cap));
+        pool::new_for_testing<COMPOSITION_SHARE, CURRENCY>(composition.uid_mut(&composition_cap));
     let mut composition_holder = stake::new(
         balance::create_for_testing<COMPOSITION_SHARE>(1_000),
         ctx,
@@ -170,7 +170,7 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
         balance::create_for_testing<RECORDING_SHARE>(100),
         ctx,
     );
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
     let mut registry = vault::new_registry_for_testing(ctx);
     let (mut vault, vault_admin_cap) = vault::new(&mut registry, composition_cap, ctx);
 
@@ -258,7 +258,7 @@ fun register_rejects_recording_from_wrong_composition() {
         balance::create_for_testing<RECORDING_SHARE>(100),
         ctx,
     );
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
     action::register(
         &mut composition,
         &admin_cap,
@@ -280,7 +280,7 @@ fun register_rejects_routed_stake_from_wrong_composition() {
         balance::create_for_testing<RECORDING_SHARE>(100),
         ctx,
     );
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
     action::register(
         &mut composition,
         &admin_cap,
@@ -306,7 +306,7 @@ fun register_rejects_pool_from_wrong_recording() {
             ctx,
         );
     let mut wrong_pool =
-        pool::new<RECORDING_SHARE, CURRENCY>(foreign_recording.uid_mut(&foreign_cap));
+        pool::new_for_testing<RECORDING_SHARE, CURRENCY>(foreign_recording.uid_mut(&foreign_cap));
     action::register(
         &mut composition,
         &admin_cap,
@@ -332,7 +332,7 @@ fun unregister_rejects_pool_from_wrong_recording() {
             ctx,
         );
     let mut wrong_pool =
-        pool::new<RECORDING_SHARE, CURRENCY>(foreign_recording.uid_mut(&foreign_cap));
+        pool::new_for_testing<RECORDING_SHARE, CURRENCY>(foreign_recording.uid_mut(&foreign_cap));
     action::unregister(
         &mut composition,
         &admin_cap,
@@ -419,7 +419,7 @@ fun unstake_rejects_registered_position() {
         balance::create_for_testing<RECORDING_SHARE>(100),
         ctx,
     );
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
     action::register(&mut composition, &admin_cap, &recording, &mut routed, &mut pool);
     let _principal: Balance<RECORDING_SHARE> = action::unstake(&mut composition, &admin_cap, &mut routed);
     abort
@@ -432,7 +432,7 @@ fun register_empty_wrapper_reaches_dependency_no_stake_guard() {
     balance::create_for_testing<RECORDING_SHARE>(1).send_funds(object::id(&composition).to_address());
     let mut routed = action::create_stake(&mut composition, &cap, &recording, 1, ctx);
     balance::destroy_for_testing(action::unstake(&mut composition, &cap, &mut routed));
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
     action::register(&mut composition, &cap, &recording, &mut routed, &mut pool);
     abort
 }
@@ -444,7 +444,7 @@ fun unregister_empty_wrapper_reaches_dependency_no_stake_guard() {
     balance::create_for_testing<RECORDING_SHARE>(1).send_funds(object::id(&composition).to_address());
     let mut routed = action::create_stake(&mut composition, &cap, &recording, 1, ctx);
     balance::destroy_for_testing(action::unstake(&mut composition, &cap, &mut routed));
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
     action::unregister(&mut composition, &cap, &recording, &mut routed, &mut pool);
     abort
 }
@@ -455,7 +455,7 @@ fun duplicate_currency_registration_reaches_pool_guard() {
     let (mut composition, cap, mut recording, recording_cap) = fixture(ctx);
     balance::create_for_testing<RECORDING_SHARE>(1).send_funds(object::id(&composition).to_address());
     let mut routed = action::create_stake(&mut composition, &cap, &recording, 1, ctx);
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
     action::register(&mut composition, &cap, &recording, &mut routed, &mut pool);
     action::register(&mut composition, &cap, &recording, &mut routed, &mut pool);
     abort
@@ -469,8 +469,8 @@ fun unregister_against_other_registered_pool_reaches_pool_id_guard() {
         recording::new_for_testing<RECORDING_SHARE, COMPOSITION_SHARE>(object::id(&composition), ctx);
     balance::create_for_testing<RECORDING_SHARE>(1).send_funds(object::id(&composition).to_address());
     let mut routed = action::create_stake(&mut composition, &cap, &recording, 1, ctx);
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
-    let mut other_pool = pool::new<RECORDING_SHARE, CURRENCY>(other_recording.uid_mut(&other_recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut other_pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(other_recording.uid_mut(&other_recording_cap));
     action::register(&mut composition, &cap, &recording, &mut routed, &mut pool);
     routed.unregister(composition.uid_mut(&cap), &mut other_pool);
     abort
@@ -482,7 +482,7 @@ fun unregister_positive_whole_reward_reaches_last_claim_guard() {
     let (mut composition, cap, mut recording, recording_cap) = fixture(ctx);
     balance::create_for_testing<RECORDING_SHARE>(1).send_funds(object::id(&composition).to_address());
     let mut routed = action::create_stake(&mut composition, &cap, &recording, 1, ctx);
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
     action::register(&mut composition, &cap, &recording, &mut routed, &mut pool);
     pool.deposit(balance::create_for_testing<CURRENCY>(1));
     action::unregister(&mut composition, &cap, &recording, &mut routed, &mut pool);
@@ -502,7 +502,7 @@ fun composite_recording_wrapper_pool_guards_preserve_recording_first() {
         balance::create_for_testing<RECORDING_SHARE>(1),
         ctx,
     );
-    let mut wrong_pool = pool::new<RECORDING_SHARE, CURRENCY>(foreign_recording.uid_mut(&foreign_recording_cap));
+    let mut wrong_pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(foreign_recording.uid_mut(&foreign_recording_cap));
     action::register(&mut composition, &cap, &foreign_recording, &mut foreign_routed, &mut wrong_pool);
     abort
 }

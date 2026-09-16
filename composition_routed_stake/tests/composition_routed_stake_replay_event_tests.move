@@ -211,8 +211,8 @@ fun event_only_replay_matches_two_currency_lifecycle_views() {
     let composition_id = object::id(&composition).to_address();
     let cap_id = object::id(&cap).to_address();
     let recording_id = object::id(&recording).to_address();
-    let mut pool_one = pool::new<R, U1>(recording.uid_mut(&recording_cap));
-    let mut pool_two = pool::new<R, U2>(recording.uid_mut(&recording_cap));
+    let mut pool_one = pool::new_for_testing<R, U1>(recording.uid_mut(&recording_cap));
+    let mut pool_two = pool::new_for_testing<R, U2>(recording.uid_mut(&recording_cap));
     let pool_one_id = object::id(&pool_one).to_address();
     let pool_two_id = object::id(&pool_two).to_address();
     balance::create_for_testing<R>(11).send_funds(composition_id);

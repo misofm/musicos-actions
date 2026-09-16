@@ -386,8 +386,8 @@ fun adapter_events_have_exact_payloads_and_fresh_stake_identity() {
     let composition_id = object::id(&composition).to_address();
     let admin_cap_id = object::id(&composition_cap).to_address();
     let recording_id = object::id(&recording).to_address();
-    let mut recording_pool = pool::new<R, U>(recording.uid_mut(&recording_cap));
-    let mut other_pool = pool::new<R, OU>(recording.uid_mut(&recording_cap));
+    let mut recording_pool = pool::new_for_testing<R, U>(recording.uid_mut(&recording_cap));
+    let mut other_pool = pool::new_for_testing<R, OU>(recording.uid_mut(&recording_cap));
     balance::create_for_testing<R>(200).send_funds(composition_id);
 
     let mut routed = action::create_stake(&mut composition, &composition_cap, &recording, 200, ctx);
@@ -464,8 +464,8 @@ fun unregister_event_captures_nontrivial_pool_accounting() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, composition_cap, mut recording, recording_cap) = fixture(ctx);
     let composition_id = object::id(&composition).to_address();
-    let mut source = pool::new<R, U>(recording.uid_mut(&recording_cap));
-    let mut destination = pool::new<C, U>(composition.uid_mut(&composition_cap));
+    let mut source = pool::new_for_testing<R, U>(recording.uid_mut(&recording_cap));
+    let mut destination = pool::new_for_testing<C, U>(composition.uid_mut(&composition_cap));
     balance::create_for_testing<R>(3).send_funds(composition_id);
     let mut routed = action::create_stake(&mut composition, &composition_cap, &recording, 3, ctx);
     let first_stake_id = object::id(routed.stake()).to_address();
@@ -503,7 +503,7 @@ fun registration_events_capture_nonzero_entry_accounting_with_holder() {
     let composition_id = object::id(&composition).to_address();
     let composition_cap_id = object::id(&composition_cap).to_address();
     let recording_id = object::id(&recording).to_address();
-    let mut pool = pool::new<R, U>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<R, U>(recording.uid_mut(&recording_cap));
     let mut holder = stake::new(balance::create_for_testing<R>(3), ctx);
     pool.register_stake(&mut holder);
     let pool_id = object::id(&pool).to_address();
@@ -556,7 +556,7 @@ fun u64_max_principal_crosses_every_lifecycle_event_and_return() {
     let composition_id = object::id(&composition).to_address();
     let cap_id = object::id(&composition_cap).to_address();
     let recording_id = object::id(&recording).to_address();
-    let mut pool = pool::new<R, U>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<R, U>(recording.uid_mut(&recording_cap));
     let pool_id = object::id(&pool).to_address();
     balance::create_for_testing<R>(maximum).send_funds(composition_id);
     let mut routed = action::create_stake(&mut composition, &composition_cap, &recording, maximum, ctx);
@@ -605,7 +605,7 @@ fun u256_and_u128_snapshots_preserve_max_deposit() {
     let composition_id = object::id(&composition).to_address();
     let cap_id = object::id(&composition_cap).to_address();
     let recording_id = object::id(&recording).to_address();
-    let mut pool = pool::new<R, U>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<R, U>(recording.uid_mut(&recording_cap));
     let mut holder = stake::new(balance::create_for_testing<R>(1), ctx);
     pool.register_stake(&mut holder);
     pool.deposit(balance::create_for_testing<U>(maximum));

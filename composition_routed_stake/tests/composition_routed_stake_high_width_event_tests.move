@@ -103,7 +103,7 @@ fun cumulative_deposits_cross_u64_with_exact_registration_snapshots() {
     let composition_id = object::id(&composition).to_address();
     let cap_id = object::id(&composition_cap).to_address();
     let recording_id = object::id(&recording).to_address();
-    let mut pool = pool::new<R, U>(recording.uid_mut(&recording_cap));
+    let mut pool = pool::new_for_testing<R, U>(recording.uid_mut(&recording_cap));
     let pool_id = object::id(&pool).to_address();
     let mut holder = stake::new(balance::create_for_testing<R>(1), ctx);
     pool.register_stake(&mut holder);

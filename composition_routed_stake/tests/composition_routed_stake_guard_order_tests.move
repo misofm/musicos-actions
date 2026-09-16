@@ -39,8 +39,8 @@ fun action_unregister_second_recording_pool_reaches_pool_id_guard() {
     let (mut composition, cap, mut recording, recording_cap) = fixture(ctx);
     let (mut other_recording, other_recording_cap) =
         recording::new_for_testing<RECORDING_SHARE, COMPOSITION_SHARE>(object::id(&composition), ctx);
-    let mut pool = pool::new<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
-    let mut other_pool = pool::new<RECORDING_SHARE, CURRENCY>(other_recording.uid_mut(&other_recording_cap));
+    let mut pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(recording.uid_mut(&recording_cap));
+    let mut other_pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(other_recording.uid_mut(&other_recording_cap));
     balance::create_for_testing<RECORDING_SHARE>(1).send_funds(object::id(&composition).to_address());
     let mut routed = action::create_stake(&mut composition, &cap, &recording, 1, ctx);
     action::register(&mut composition, &cap, &recording, &mut routed, &mut pool);
@@ -63,7 +63,7 @@ fun register_valid_recording_wrong_wrapper_precedes_wrong_pool() {
         balance::create_for_testing<RECORDING_SHARE>(1),
         ctx,
     );
-    let mut wrong_pool = pool::new<RECORDING_SHARE, CURRENCY>(other_recording.uid_mut(&other_recording_cap));
+    let mut wrong_pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(other_recording.uid_mut(&other_recording_cap));
     // Recording is valid, so the wrapper check must win over the pool check.
     action::register(&mut composition, &cap, &recording, &mut foreign_routed, &mut wrong_pool);
     abort
@@ -82,7 +82,7 @@ fun unregister_valid_recording_wrong_wrapper_precedes_wrong_pool() {
         balance::create_for_testing<RECORDING_SHARE>(1),
         ctx,
     );
-    let mut wrong_pool = pool::new<RECORDING_SHARE, CURRENCY>(other_recording.uid_mut(&other_recording_cap));
+    let mut wrong_pool = pool::new_for_testing<RECORDING_SHARE, CURRENCY>(other_recording.uid_mut(&other_recording_cap));
     // The valid Recording passes first; the wrong wrapper must stop the call
     // before either pool guard or dependency registration checks.
     action::unregister(&mut composition, &cap, &recording, &mut foreign_routed, &mut wrong_pool);
