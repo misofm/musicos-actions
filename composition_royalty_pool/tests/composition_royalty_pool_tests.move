@@ -288,13 +288,16 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
     destroy(composition);
 }
 
-#[test, expected_failure]
+#[test, expected_failure(abort_code = sui::derived_object::EObjectAlreadyExists, location = sui::derived_object)]
 fun duplicate_pool_derivation_claim_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap) = fixture(ctx);
-    let _first = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
-    let _second = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
-    abort
+    let first = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    let second = action::new_pool<COMPOSITION_SHARE, CURRENCY>(&mut composition, &admin_cap);
+    destroy(second);
+    destroy(first);
+    destroy(admin_cap);
+    destroy(composition);
 }
 
 #[test, expected_failure(abort_code = EPoolNotDerivedFromParent, location = pool)]

@@ -319,19 +319,22 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
     destroy(recording);
 }
 
-#[test, expected_failure]
+#[test, expected_failure(abort_code = sui::derived_object::EObjectAlreadyExists, location = sui::derived_object)]
 fun duplicate_pool_derivation_claim_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut recording, admin_cap) = fixture(ctx);
-    let _first = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+    let first = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
         &mut recording,
         &admin_cap,
     );
-    let _second = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+    let second = action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
         &mut recording,
         &admin_cap,
     );
-    abort
+    destroy(second);
+    destroy(first);
+    destroy(admin_cap);
+    destroy(recording);
 }
 
 #[test, expected_failure(abort_code = EPoolNotDerivedFromParent, location = pool)]
