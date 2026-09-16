@@ -163,7 +163,7 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
     assert_eq!(borrowed_again.release_id(), object::id(&release));
     vault.put_back(borrowed_again, second_receipt);
 
-    let admin_cap = vault.withdraw_cap(&vault_admin_cap);
+    let admin_cap = vault.withdraw_vaulted_cap(&vault_admin_cap);
     destroy(admin_cap);
     destroy(vault_admin_cap);
     destroy(vault);

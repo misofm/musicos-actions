@@ -310,7 +310,7 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
     );
     vault.put_back(borrowed_again, second_receipt);
 
-    let admin_cap = vault.withdraw_cap(&vault_admin_cap);
+    let admin_cap = vault.withdraw_vaulted_cap(&vault_admin_cap);
     destroy(pool);
     destroy(admin_cap);
     destroy(vault_admin_cap);

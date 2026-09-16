@@ -37,7 +37,7 @@ deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 [pinned.mainnet.release_revenue_distributor]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "B9DF8F7A5905BBF99FDD286767C94E2563DE80313F9BE7AE4B82FD3E68FF0C9F"
+manifest_digest = "1CF361F6DCFAE9DD14AECD63C31060087FC2D40BCA43E8C079922D8D621F0E3A"
 deps = { hikida = "hikida", musicos = "musicos", std = "MoveStdlib", sui = "Sui", vault = "vault" }
 
 [pinned.mainnet.share]
@@ -47,7 +47,7 @@ manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5E
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.vault]
-source = { git = "https://github.com/misofm/vault.git", subdir = ".", rev = "b1e49bf8e8e2fc174f29cc685ac72c9d18b9db75" }
+source = { git = "https://github.com/misofm/vault.git", subdir = ".", rev = "cb45a50dabe326a332efb61aa219c8205873c31c" }
 use_environment = "mainnet"
 manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
 deps = { std = "MoveStdlib", sui = "Sui" }
@@ -85,7 +85,7 @@ deps = { bps = "bps", share = "share", std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.release_revenue_distributor]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "4F93015D4B923966CD98DF9F47314E54E9B6B52CAEC5295E230EAE7FD5016A7C"
+manifest_digest = "9DAE8139A56331070B932E3F7FCBAFE66AE5BEC903E8B4950FE080B1975597F5"
 deps = { hikida = "hikida", musicos = "musicos", std = "MoveStdlib", sui = "Sui", vault = "vault" }
 
 [pinned.testnet.share]
@@ -95,7 +95,7 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.vault]
-source = { git = "https://github.com/misofm/vault.git", subdir = ".", rev = "b1e49bf8e8e2fc174f29cc685ac72c9d18b9db75" }
+source = { git = "https://github.com/misofm/vault.git", subdir = ".", rev = "cb45a50dabe326a332efb61aa219c8205873c31c" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }

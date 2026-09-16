@@ -25,7 +25,7 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.mainnet.composition_routed_stake]
 source = { root = true }
 use_environment = "mainnet"
-manifest_digest = "52BBA78C6D5D5B7B93B522A2B0A75CA3DC5A6C5D0CE6356601FD8DB1782428CE"
+manifest_digest = "1567B0644F4BCF86A470599DE96C2BD71DC27FACBDDE0DC3301BA101E2821EB7"
 deps = { hikida = "hikida", musicos = "musicos", routed_stake = "routed_stake", royalty_pool = "royalty_pool", std = "MoveStdlib", sui = "Sui", vault = "vault" }
 
 [pinned.mainnet.hikida]
@@ -59,7 +59,7 @@ manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5E
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.mainnet.vault]
-source = { git = "https://github.com/misofm/vault.git", subdir = ".", rev = "b1e49bf8e8e2fc174f29cc685ac72c9d18b9db75" }
+source = { git = "https://github.com/misofm/vault.git", subdir = ".", rev = "cb45a50dabe326a332efb61aa219c8205873c31c" }
 use_environment = "mainnet"
 manifest_digest = "E41BBD67BE8940D26C79D78B028477EF5B33BA217A1282C78ACB344CF8A5ECF6"
 deps = { std = "MoveStdlib", sui = "Sui" }
@@ -85,7 +85,7 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.composition_routed_stake]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "0006A92912AB2678348650C65EE3B0193B370A30AED71E6EE4784F3058020D52"
+manifest_digest = "46FA6E7D177BD19308EEF0FA223E6A45A0379DA80E8416405AC668231AC4FA5F"
 deps = { hikida = "hikida", musicos = "musicos", routed_stake = "routed_stake", royalty_pool = "royalty_pool", std = "MoveStdlib", sui = "Sui", vault = "vault" }
 
 [pinned.testnet.hikida]
@@ -119,7 +119,7 @@ manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332
 deps = { std = "MoveStdlib", sui = "Sui" }
 
 [pinned.testnet.vault]
-source = { git = "https://github.com/misofm/vault.git", subdir = ".", rev = "b1e49bf8e8e2fc174f29cc685ac72c9d18b9db75" }
+source = { git = "https://github.com/misofm/vault.git", subdir = ".", rev = "cb45a50dabe326a332efb61aa219c8205873c31c" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }

@@ -201,7 +201,7 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
     assert_eq!(unregistered_cap_id, borrowed_again_id);
     vault.put_back(borrowed_again, second_receipt);
 
-    let composition_cap = vault.withdraw_cap(&vault_admin_cap);
+    let composition_cap = vault.withdraw_vaulted_cap(&vault_admin_cap);
     let composition_cap_id = object::id(&composition_cap).to_address();
     let principal = action::unstake(&mut composition, &composition_cap, &mut routed);
     let unstaked = event::events_by_type<action::CompositionRoutedStakeUnstakedEvent<RECORDING_SHARE, COMPOSITION_SHARE>>();
