@@ -1,40 +1,26 @@
 // Copyright (c) Miso Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-/// Test-only share type and currency fixtures for the production pool gate.
+/// Test-only native Share fixtures for recording royalty actions.
 #[test_only]
 module recording_royalty_pool::share;
 
-use sui::balance::Balance;
-use sui::coin::TreasuryCap;
-use sui::coin_registry::{Self, Currency, MetadataCap};
+use musicos::recording::{Recording, RecordingAdminCap};
+use royalty_pool::pool::RoyaltyPool;
+use share::share::{Self, Issuance, Share};
+use std::unit_test::destroy;
 
-const SUPPLY: u64 = 100_000_000_000_000;
-
-public struct Share has key { id: UID }
-
-public fun bootstrap_currency(ctx: &mut TxContext): (Currency<Share>, Balance<Share>) {
-    let (mut currency, mut treasury_cap, metadata_cap) = new_currency(ctx);
-    currency.delete_metadata_cap(metadata_cap);
-    let supply = treasury_cap.mint_balance(SUPPLY);
-    currency.make_supply_fixed(treasury_cap);
-    (currency, supply)
+public fun bootstrap(
+    recording: &mut Recording,
+    cap: &RecordingAdminCap,
+    ctx: &mut TxContext,
+): (Issuance, Share) {
+    let mut registry = share::registry_for_testing(ctx);
+    let (issuance, shares) = share::initialize_for_testing(&mut registry, recording.uid_mut(cap));
+    destroy(registry);
+    (issuance, shares)
 }
 
-public fun new_currency(
-    ctx: &mut TxContext,
-): (Currency<Share>, TreasuryCap<Share>, MetadataCap<Share>) {
-    let mut registry = coin_registry::create_coin_data_registry_for_testing(ctx);
-    let (initializer, treasury_cap) = registry.new_currency<Share>(
-        6,
-        b"SHR".to_string(),
-        b"Share".to_string(),
-        b"".to_string(),
-        b"".to_string(),
-        ctx,
-    );
-    let (currency, metadata_cap) =
-        coin_registry::finalize_unwrap_for_testing(initializer, ctx);
-    std::unit_test::destroy(registry);
-    (currency, treasury_cap, metadata_cap)
+public fun for_pool<Currency>(pool: &RoyaltyPool<Currency>, value: u64): Share {
+    share::create_for_testing_from_id(pool.issuance_id(), value)
 }

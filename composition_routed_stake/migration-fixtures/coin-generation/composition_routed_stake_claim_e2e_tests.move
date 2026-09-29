@@ -18,6 +18,7 @@ use royalty_pool::stake::{Self, Stake};
 use routed_stake::routed_stake::{Self, RoutedStake};
 use std::unit_test::{assert_eq, destroy};
 use sui::balance;
+use sui::bcs;
 use sui::clock;
 use sui::event;
 use sui::test_scenario::{Self, Scenario};
@@ -67,7 +68,7 @@ fun setup(sc: &mut Scenario): ID {
     assert_eq!(routed_id, object::id(&routed).to_address());
     assert_eq!(stake_id, object::id(routed.stake()).to_address());
     assert_eq!(principal, COMPOSITION_CUT); assert_eq!(registrations, 0);
-    assert_eq!(sui::bcs::to_bytes(&created[0]).length(), 208);
+    assert_eq!(bcs::to_bytes(&created[0]).length(), 208);
     let registered = event::events_by_type<action::CompositionRoutedStakeRegisteredEvent<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>>();
     assert_eq!(registered.length(), 1);
     let (_, _, _, registered_routed_id, registered_stake_id, pool_id, principal, before, after, _, _, _, _, debt, _, _) =
@@ -75,7 +76,7 @@ fun setup(sc: &mut Scenario): ID {
     assert_eq!(registered_routed_id, routed_id); assert_eq!(registered_stake_id, stake_id);
     assert_eq!(pool_id, object::id(&recording_pool).to_address());
     assert_eq!(principal, COMPOSITION_CUT); assert_eq!(before, 0); assert_eq!(after, 1);
-    assert_eq!(debt, 0); assert_eq!(sui::bcs::to_bytes(&registered[0]).length(), 336);
+    assert_eq!(debt, 0); assert_eq!(bcs::to_bytes(&registered[0]).length(), 336);
     routed_stake::share(routed);
     test_scenario::return_shared(recording_pool);
     test_scenario::return_shared(recording);
@@ -146,14 +147,14 @@ fun admin_exits(sc: &mut Scenario) {
     assert_eq!(index, recording_pool.cumulative_reward_per_share());
     assert_eq!(carry, recording_pool.carry());
     assert_eq!(deposits, recording_pool.cumulative_deposits());
-    assert_eq!(sui::bcs::to_bytes(&unregistered[0]).length(), 368);
+    assert_eq!(bcs::to_bytes(&unregistered[0]).length(), 368);
     let unstaked = event::events_by_type<action::CompositionRoutedStakeUnstakedEvent<RECORDING_SHARE, COMPOSITION_SHARE>>();
     assert_eq!(unstaked.length(), 1);
     let (_, _, unstaked_routed_id, unstaked_stake_id, unstaked_principal) = action::unstaked_event_fields(&unstaked[0]);
     assert_eq!(unstaked_routed_id, object::id(&routed).to_address());
     assert_eq!(unstaked_stake_id, unregistered_stake_id);
     assert_eq!(unstaked_principal, COMPOSITION_CUT);
-    assert_eq!(sui::bcs::to_bytes(&unstaked[0]).length(), 136);
+    assert_eq!(bcs::to_bytes(&unstaked[0]).length(), 136);
     destroy(principal);
     test_scenario::return_shared(routed);
     test_scenario::return_shared(recording_pool);

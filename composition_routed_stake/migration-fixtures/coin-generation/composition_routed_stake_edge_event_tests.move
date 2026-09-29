@@ -197,7 +197,7 @@ fun max_u64_principal_round_trips_with_fixed_payload() {
     destroy(composition); destroy(composition_cap);
 }
 
-#[test, expected_failure(abort_code = 3, location = royalty_pool::pool)]
+#[test, expected_failure(abort_code = 3, location = pool)]
 fun unregister_without_registration_reaches_dependency_guard() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, composition_cap, mut recording, recording_cap) = fixture<R1, C1>(ctx);

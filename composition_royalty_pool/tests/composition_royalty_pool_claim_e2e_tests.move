@@ -12,13 +12,11 @@ module composition_royalty_pool::composition_royalty_pool_claim_e2e_tests;
 
 use composition_royalty_pool::composition_royalty_pool as action;
 use composition_royalty_pool::share as test_share;
-use composition_royalty_pool::share::Share as COMPOSITION_SHARE;
 use musicos::composition::{Self, Composition, CompositionAdminCap};
 use royalty_pool::pool::RoyaltyPool;
 use royalty_pool::stake::{Self, Stake};
 use std::unit_test::{assert_eq, destroy};
 use sui::balance;
-use sui::clock;
 use sui::coin::{Self, Coin};
 use sui::test_scenario::{Self, Scenario};
 
@@ -29,19 +27,19 @@ const PAYER: address = @0x9A;
 
 public struct CURRENCY() has drop;
 
-fun holder_registers(sc: &mut Scenario, holder: address, shares: u64) {
+fun holder_registers(sc: &mut Scenario, holder: address) {
     sc.next_tx(holder);
-    let mut pool = sc.take_shared<RoyaltyPool<COMPOSITION_SHARE, CURRENCY>>();
-    let mut s = stake::new(balance::create_for_testing<COMPOSITION_SHARE>(shares), sc.ctx());
+    let mut pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
+    let mut s = sc.take_from_sender<Stake>();
     pool.register_stake(&mut s);
     test_scenario::return_shared(pool);
-    transfer::public_transfer(s, holder);
+    sc.return_to_sender(s);
 }
 
 fun holder_claims(sc: &mut Scenario, holder: address, expected: u64) {
     sc.next_tx(holder);
-    let mut pool = sc.take_shared<RoyaltyPool<COMPOSITION_SHARE, CURRENCY>>();
-    let mut s = sc.take_from_sender<Stake<COMPOSITION_SHARE>>();
+    let mut pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
+    let mut s = sc.take_from_sender<Stake>();
     assert_eq!(pool.pending_rewards(&s), expected);
     let reward = pool.claim_rewards(&mut s);
     assert_eq!(reward.value(), expected);
@@ -57,25 +55,25 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
 
     // --- ADMIN: publish the composition (shared) and share its canonical pool ---
     let (mut composition, cap) =
-        composition::new_for_testing<COMPOSITION_SHARE>("Composition", 1_000, sc.ctx());
+        composition::new(sc.ctx());
     let composition_id = object::id(&composition);
-    let (share_currency, supply) =
-        test_share::bootstrap_currency(&mut tx_context::dummy());
-    action::new_pool<COMPOSITION_SHARE, CURRENCY>(
+    let (issuance, mut supply) = test_share::bootstrap(&mut composition, &cap, sc.ctx());
+    action::new_pool<CURRENCY>(
         &mut composition,
         &cap,
-        &share_currency,
+        &issuance,
     ).share();
-    balance::destroy_for_testing(supply);
-    destroy(share_currency);
-    let clock = clock::create_for_testing(sc.ctx());
-    composition.publish(&cap, &clock);
-    clock.destroy_for_testing();
+    // Holders receive actual splits of this issuance.
+    transfer::public_transfer(stake::new(supply.split(300), sc.ctx()), HOLDER_A);
+    transfer::public_transfer(stake::new(supply.split(100), sc.ctx()), HOLDER_B);
+    destroy(supply);
+    destroy(issuance);
+    composition.publish(&cap);
     transfer::public_transfer(cap, ADMIN);
 
     // --- Holders stake 300 and 100 composition shares ---
-    holder_registers(&mut sc, HOLDER_A, 300);
-    holder_registers(&mut sc, HOLDER_B, 100);
+    holder_registers(&mut sc, HOLDER_A);
+    holder_registers(&mut sc, HOLDER_B);
 
     // --- PAYER sends a 1_001 coin to the composition's address ---
     sc.next_tx(PAYER);
@@ -85,9 +83,9 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
 
     // --- ADMIN folds it in through the action ---
     sc.next_tx(ADMIN);
-    let mut composition = sc.take_shared<Composition<COMPOSITION_SHARE>>();
-    let cap = sc.take_from_sender<CompositionAdminCap<COMPOSITION_SHARE>>();
-    let mut pool = sc.take_shared<RoyaltyPool<COMPOSITION_SHARE, CURRENCY>>();
+    let mut composition = sc.take_shared<Composition>();
+    let cap = sc.take_from_sender<CompositionAdminCap>();
+    let mut pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
     let ticket = test_scenario::receiving_ticket_by_id<Coin<CURRENCY>>(paid_id);
     action::receive_and_deposit(&mut composition, &cap, &mut pool, vector[ticket]);
     assert_eq!(pool.balance().value(), 1_001);
@@ -104,9 +102,9 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
     balance::create_for_testing<CURRENCY>(400).send_funds(composition_id.to_address());
 
     sc.next_tx(ADMIN);
-    let mut composition = sc.take_shared<Composition<COMPOSITION_SHARE>>();
-    let cap = sc.take_from_sender<CompositionAdminCap<COMPOSITION_SHARE>>();
-    let mut pool = sc.take_shared<RoyaltyPool<COMPOSITION_SHARE, CURRENCY>>();
+    let mut composition = sc.take_shared<Composition>();
+    let cap = sc.take_from_sender<CompositionAdminCap>();
+    let mut pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
     action::redeem_settled_value_and_deposit_for_testing(&mut composition, &cap, &mut pool, 400);
     test_scenario::return_shared(pool);
     test_scenario::return_shared(composition);
@@ -117,7 +115,7 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
     holder_claims(&mut sc, HOLDER_B, 100);
 
     sc.next_tx(ADMIN);
-    let pool = sc.take_shared<RoyaltyPool<COMPOSITION_SHARE, CURRENCY>>();
+    let pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
     assert_eq!(pool.balance().value(), 1);          // 1401 − 1400: sub-unit residue only
     assert_eq!(pool.cumulative_deposits(), 1_401);
     test_scenario::return_shared(pool);

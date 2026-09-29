@@ -40,7 +40,6 @@ public struct ReleaseFundsRedeemedEvent<phantom Currency> has copy, drop {
 public struct ReleaseTrackRevenueDistributedEvent<phantom Currency> has copy, drop {
     release_id: address,
     track_index: u64,
-    composition_id: address,
     recording_id: address,
     split_bps: u16,
     total_input: u64,
@@ -147,7 +146,6 @@ fun distribute<Currency>(release: &Release, mut revenue: Balance<Currency>) {
             emit(ReleaseTrackRevenueDistributedEvent<Currency> {
                 release_id,
                 track_index,
-                composition_id: track.composition_id().to_address(),
                 recording_id: track.recording_id().to_address(),
                 split_bps: track.split_bps().value(),
                 total_input,
@@ -192,11 +190,10 @@ public fun funds_redeemed_event_fields<Currency>(
 #[test_only]
 public fun track_event_fields<Currency>(
     event: &ReleaseTrackRevenueDistributedEvent<Currency>,
-): (address, u64, address, address, u16, u64, u64) {
+): (address, u64, address, u16, u64, u64) {
     (
         event.release_id,
         event.track_index,
-        event.composition_id,
         event.recording_id,
         event.split_bps,
         event.total_input,

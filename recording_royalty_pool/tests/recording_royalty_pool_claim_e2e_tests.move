@@ -12,12 +12,10 @@ module recording_royalty_pool::recording_royalty_pool_claim_e2e_tests;
 use musicos::recording::{Self, Recording, RecordingAdminCap};
 use recording_royalty_pool::recording_royalty_pool as action;
 use recording_royalty_pool::share as test_share;
-use recording_royalty_pool::share::Share as RECORDING_SHARE;
 use royalty_pool::pool::RoyaltyPool;
 use royalty_pool::stake::{Self, Stake};
 use std::unit_test::{assert_eq, destroy};
 use sui::balance;
-use sui::clock;
 use sui::coin::{Self, Coin};
 use sui::test_scenario::{Self, Scenario};
 
@@ -26,22 +24,21 @@ const HOLDER_A: address = @0xA;
 const HOLDER_B: address = @0xB;
 const PAYER: address = @0x9A;
 
-public struct COMPOSITION_SHARE() has drop;
 public struct CURRENCY() has drop;
 
-fun holder_registers(sc: &mut Scenario, holder: address, shares: u64) {
+fun holder_registers(sc: &mut Scenario, holder: address) {
     sc.next_tx(holder);
-    let mut pool = sc.take_shared<RoyaltyPool<RECORDING_SHARE, CURRENCY>>();
-    let mut s = stake::new(balance::create_for_testing<RECORDING_SHARE>(shares), sc.ctx());
+    let mut pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
+    let mut s = sc.take_from_sender<Stake>();
     pool.register_stake(&mut s);
     test_scenario::return_shared(pool);
-    transfer::public_transfer(s, holder);
+    sc.return_to_sender(s);
 }
 
 fun holder_claims(sc: &mut Scenario, holder: address, expected: u64) {
     sc.next_tx(holder);
-    let mut pool = sc.take_shared<RoyaltyPool<RECORDING_SHARE, CURRENCY>>();
-    let mut s = sc.take_from_sender<Stake<RECORDING_SHARE>>();
+    let mut pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
+    let mut s = sc.take_from_sender<Stake>();
     assert_eq!(pool.pending_rewards(&s), expected);
     let reward = pool.claim_rewards(&mut s);
     assert_eq!(reward.value(), expected);
@@ -54,27 +51,26 @@ fun holder_claims(sc: &mut Scenario, holder: address, expected: u64) {
 fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
     let mut sc = test_scenario::begin(ADMIN);
 
-    let (mut recording, cap) = recording::new_for_testing<RECORDING_SHARE, COMPOSITION_SHARE>(
+    let (mut recording, cap) = recording::new_for_testing(
         object::id_from_address(@0xC0),
         sc.ctx(),
     );
     let recording_id = object::id(&recording);
-    let (share_currency, supply) =
-        test_share::bootstrap_currency(&mut tx_context::dummy());
-    action::new_pool<RECORDING_SHARE, COMPOSITION_SHARE, CURRENCY>(
+    let (issuance, mut supply) = test_share::bootstrap(&mut recording, &cap, sc.ctx());
+    action::new_pool<CURRENCY>(
         &mut recording,
         &cap,
-        &share_currency,
+        &issuance,
     ).share();
-    balance::destroy_for_testing(supply);
-    destroy(share_currency);
-    let clock = clock::create_for_testing(sc.ctx());
-    recording.publish(&cap, &clock);
-    clock.destroy_for_testing();
+    transfer::public_transfer(stake::new(supply.split(7), sc.ctx()), HOLDER_A);
+    transfer::public_transfer(stake::new(supply.split(3), sc.ctx()), HOLDER_B);
+    destroy(supply);
+    destroy(issuance);
+    recording.publish(&cap);
     transfer::public_transfer(cap, ADMIN);
 
-    holder_registers(&mut sc, HOLDER_A, 7);
-    holder_registers(&mut sc, HOLDER_B, 3);
+    holder_registers(&mut sc, HOLDER_A);
+    holder_registers(&mut sc, HOLDER_B);
 
     sc.next_tx(PAYER);
     let paid = coin::from_balance(balance::create_for_testing<CURRENCY>(1_000), sc.ctx());
@@ -82,9 +78,9 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
     transfer::public_transfer(paid, recording_id.to_address());
 
     sc.next_tx(ADMIN);
-    let mut recording = sc.take_shared<Recording<RECORDING_SHARE, COMPOSITION_SHARE>>();
-    let cap = sc.take_from_sender<RecordingAdminCap<RECORDING_SHARE>>();
-    let mut pool = sc.take_shared<RoyaltyPool<RECORDING_SHARE, CURRENCY>>();
+    let mut recording = sc.take_shared<Recording>();
+    let cap = sc.take_from_sender<RecordingAdminCap>();
+    let mut pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
     let ticket = test_scenario::receiving_ticket_by_id<Coin<CURRENCY>>(paid_id);
     action::receive_and_deposit(&mut recording, &cap, &mut pool, vector[ticket]);
     test_scenario::return_shared(pool);
@@ -99,9 +95,9 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
     balance::create_for_testing<CURRENCY>(5).send_funds(recording_id.to_address());
 
     sc.next_tx(ADMIN);
-    let mut recording = sc.take_shared<Recording<RECORDING_SHARE, COMPOSITION_SHARE>>();
-    let cap = sc.take_from_sender<RecordingAdminCap<RECORDING_SHARE>>();
-    let mut pool = sc.take_shared<RoyaltyPool<RECORDING_SHARE, CURRENCY>>();
+    let mut recording = sc.take_shared<Recording>();
+    let cap = sc.take_from_sender<RecordingAdminCap>();
+    let mut pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
     action::redeem_settled_value_and_deposit_for_testing(&mut recording, &cap, &mut pool, 5);
     test_scenario::return_shared(pool);
     test_scenario::return_shared(recording);
@@ -112,7 +108,7 @@ fun holders_claim_exact_pro_rata_across_receive_and_redeem_paths() {
     holder_claims(&mut sc, HOLDER_B, 1);
 
     sc.next_tx(ADMIN);
-    let pool = sc.take_shared<RoyaltyPool<RECORDING_SHARE, CURRENCY>>();
+    let pool = sc.take_shared<RoyaltyPool<CURRENCY>>();
     assert_eq!(pool.balance().value(), 1);          // 0.5 + 0.5 of residue
     test_scenario::return_shared(pool);
     sc.end();

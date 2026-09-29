@@ -13,7 +13,7 @@ use royalty_pool::pool::{Self, RoyaltyPool};
 use sui::accumulator::AccumulatorRoot;
 use sui::balance;
 use sui::coin::Coin;
-use sui::coin_registry::Currency as ShareCurrency;
+use share::share::Issuance;
 use sui::event::emit;
 use sui::transfer::Receiving;
 
@@ -27,7 +27,7 @@ const ENoCoinsToReceive: u64 = 0;
 /// Complete provenance and initial pool snapshot for a newly created pool.
 /// The dependency's creation event remains first; this action event follows
 /// it with the recording, composition, and admin-cap identities.
-public struct RecordingRoyaltyPoolCreatedEvent<phantom RecordingShare, phantom CompositionShare, phantom Currency>
+public struct RecordingRoyaltyPoolCreatedEvent<phantom Currency>
     has copy, drop {
     recording_id: address,
     composition_id: address,
@@ -42,7 +42,7 @@ public struct RecordingRoyaltyPoolCreatedEvent<phantom RecordingShare, phantom C
 
 /// Complete provenance, input coin identities, and before/after pool snapshot
 /// for a successful coin receive and deposit.
-public struct RecordingCoinsDepositedEvent<phantom RecordingShare, phantom CompositionShare, phantom Currency>
+public struct RecordingCoinsDepositedEvent<phantom Currency>
     has copy, drop {
     recording_id: address,
     composition_id: address,
@@ -63,7 +63,7 @@ public struct RecordingCoinsDepositedEvent<phantom RecordingShare, phantom Compo
 
 /// Complete provenance, accumulator source amount, and before/after pool
 /// snapshot for a successful funds-accumulator redemption and deposit.
-public struct RecordingFundsDepositedEvent<phantom RecordingShare, phantom CompositionShare, phantom Currency>
+public struct RecordingFundsDepositedEvent<phantom Currency>
     has copy, drop {
     recording_id: address,
     composition_id: address,
@@ -83,16 +83,16 @@ public struct RecordingFundsDepositedEvent<phantom RecordingShare, phantom Compo
 
 /// Create and return the canonical unshared pool derived from `recording`.
 /// Emits `RecordingRoyaltyPoolCreatedEvent` after successful creation.
-public fun new_pool<RecordingShare, CompositionShare, Currency>(
-    recording: &mut Recording<RecordingShare, CompositionShare>,
-    admin_cap: &RecordingAdminCap<RecordingShare>,
-    share_currency: &ShareCurrency<RecordingShare>,
-): RoyaltyPool<RecordingShare, Currency> {
+public fun new_pool<Currency>(
+    recording: &mut Recording,
+    admin_cap: &RecordingAdminCap,
+    issuance: &Issuance,
+): RoyaltyPool<Currency> {
     let recording_id = object::id(recording).to_address();
     let composition_id = recording.composition_id().to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
-    let pool = pool::new(recording.uid_mut(admin_cap), share_currency);
-    emit(RecordingRoyaltyPoolCreatedEvent<RecordingShare, CompositionShare, Currency> {
+    let pool = pool::new(recording.uid_mut(admin_cap), issuance);
+    emit(RecordingRoyaltyPoolCreatedEvent<Currency> {
         recording_id,
         composition_id,
         admin_cap_id,
@@ -109,10 +109,10 @@ public fun new_pool<RecordingShare, CompositionShare, Currency>(
 /// Receive selected coins sent to the Recording and deposit their balance
 /// into the canonical pool derived from that same Recording.
 /// Emits `RecordingCoinsDepositedEvent` after successful deposit.
-public fun receive_and_deposit<RecordingShare, CompositionShare, Currency>(
-    recording: &mut Recording<RecordingShare, CompositionShare>,
-    admin_cap: &RecordingAdminCap<RecordingShare>,
-    pool: &mut RoyaltyPool<RecordingShare, Currency>,
+public fun receive_and_deposit<Currency>(
+    recording: &mut Recording,
+    admin_cap: &RecordingAdminCap,
+    pool: &mut RoyaltyPool<Currency>,
     coins: vector<Receiving<Coin<Currency>>>,
 ) {
     pool.assert_derived_from(object::id(recording));
@@ -131,7 +131,7 @@ public fun receive_and_deposit<RecordingShare, CompositionShare, Currency>(
     let received = hikida::receive_coins_as_balance(uid, coins);
     let amount = received.value();
     pool.deposit(received);
-    emit(RecordingCoinsDepositedEvent<RecordingShare, CompositionShare, Currency> {
+    emit(RecordingCoinsDepositedEvent<Currency> {
         recording_id,
         composition_id,
         admin_cap_id,
@@ -173,14 +173,14 @@ public fun receive_and_deposit<RecordingShare, CompositionShare, Currency>(
 /// each object at most once per PTB and treat that status as retry next
 /// commit.
 /// Emits `RecordingFundsDepositedEvent` after a successful deposit.
-public fun redeem_all_and_deposit<RecordingShare, CompositionShare, Currency>(
-    recording: &mut Recording<RecordingShare, CompositionShare>,
-    admin_cap: &RecordingAdminCap<RecordingShare>,
-    pool: &mut RoyaltyPool<RecordingShare, Currency>,
+public fun redeem_all_and_deposit<Currency>(
+    recording: &mut Recording,
+    admin_cap: &RecordingAdminCap,
+    pool: &mut RoyaltyPool<Currency>,
     root: &AccumulatorRoot,
 ) {
     let value = balance::settled_funds_value<Currency>(root, object::id(recording).to_address());
-    redeem_settled_value_and_deposit<RecordingShare, CompositionShare, Currency>(
+    redeem_settled_value_and_deposit<Currency>(
         recording,
         admin_cap,
         pool,
@@ -191,16 +191,14 @@ public fun redeem_all_and_deposit<RecordingShare, CompositionShare, Currency>(
 /// Redeem a previously read settled snapshot when it is positive and the pool
 /// has registered stake. The pool derivation is checked before either
 /// short-circuit so a wrong pool is rejected even when there is nothing to do.
-fun redeem_settled_value_and_deposit<RecordingShare, CompositionShare, Currency>(
-    recording: &mut Recording<RecordingShare, CompositionShare>,
-    admin_cap: &RecordingAdminCap<RecordingShare>,
-    pool: &mut RoyaltyPool<RecordingShare, Currency>,
+fun redeem_settled_value_and_deposit<Currency>(
+    recording: &mut Recording,
+    admin_cap: &RecordingAdminCap,
+    pool: &mut RoyaltyPool<Currency>,
     value: u64,
 ) {
     pool.assert_derived_from(object::id(recording));
-    // Intentionally short-circuits before `uid_mut(admin_cap)`: Recording admin
-    // caps are matched by phantom share type only (no object-id check exists
-    // to skip), so returning early is security-neutral.
+    recording.authorize(admin_cap);
     if (value == 0 || pool.staked_shares() == 0) return;
     let recording_id = object::id(recording).to_address();
     let composition_id = recording.composition_id().to_address();
@@ -215,7 +213,7 @@ fun redeem_settled_value_and_deposit<RecordingShare, CompositionShare, Currency>
     let redeemed = hikida::redeem_balance<Currency>(uid, value);
     let amount = redeemed.value();
     pool.deposit(redeemed);
-    emit(RecordingFundsDepositedEvent<RecordingShare, CompositionShare, Currency> {
+    emit(RecordingFundsDepositedEvent<Currency> {
         recording_id,
         composition_id,
         admin_cap_id,
@@ -233,18 +231,19 @@ fun redeem_settled_value_and_deposit<RecordingShare, CompositionShare, Currency>
     });
 }
 
-/// Canonical pool address for this Recording, share type, and Currency.
-public fun pool_address<RecordingShare, CompositionShare, Currency>(
-    recording: &Recording<RecordingShare, CompositionShare>,
+/// Canonical pool address for this Recording, issuance, and payout Currency.
+public fun pool_address<Currency>(
+    recording: &Recording,
+    issuance_id: ID,
 ): address {
-    pool::derived_address<RecordingShare, Currency>(object::id(recording))
+    pool::derived_address<Currency>(object::id(recording), issuance_id)
 }
 
 // === Test Functions ===
 
 #[test_only]
-public fun created_event_fields<RecordingShare, CompositionShare, Currency>(
-    event: &RecordingRoyaltyPoolCreatedEvent<RecordingShare, CompositionShare, Currency>,
+public fun created_event_fields<Currency>(
+    event: &RecordingRoyaltyPoolCreatedEvent<Currency>,
 ): (address, address, address, address, u64, u64, u256, u128, u128) {
     (
         event.recording_id,
@@ -260,8 +259,8 @@ public fun created_event_fields<RecordingShare, CompositionShare, Currency>(
 }
 
 #[test_only]
-public fun coins_deposited_event_fields<RecordingShare, CompositionShare, Currency>(
-    event: &RecordingCoinsDepositedEvent<RecordingShare, CompositionShare, Currency>,
+public fun coins_deposited_event_fields<Currency>(
+    event: &RecordingCoinsDepositedEvent<Currency>,
 ): (address, address, address, address, u64, u64, u64, u64, u256, u256, u128, u128, u128, u128, u64) {
     (
         event.recording_id,
@@ -283,8 +282,8 @@ public fun coins_deposited_event_fields<RecordingShare, CompositionShare, Curren
 }
 
 #[test_only]
-public fun funds_deposited_event_fields<RecordingShare, CompositionShare, Currency>(
-    event: &RecordingFundsDepositedEvent<RecordingShare, CompositionShare, Currency>,
+public fun funds_deposited_event_fields<Currency>(
+    event: &RecordingFundsDepositedEvent<Currency>,
 ): (address, address, address, address, u64, u64, u64, u64, u256, u256, u128, u128, u128, u128) {
     (
         event.recording_id,
@@ -305,13 +304,13 @@ public fun funds_deposited_event_fields<RecordingShare, CompositionShare, Curren
 }
 
 #[test_only]
-public fun redeem_settled_value_and_deposit_for_testing<RecordingShare, CompositionShare, Currency>(
-    recording: &mut Recording<RecordingShare, CompositionShare>,
-    admin_cap: &RecordingAdminCap<RecordingShare>,
-    pool: &mut RoyaltyPool<RecordingShare, Currency>,
+public fun redeem_settled_value_and_deposit_for_testing<Currency>(
+    recording: &mut Recording,
+    admin_cap: &RecordingAdminCap,
+    pool: &mut RoyaltyPool<Currency>,
     value: u64,
 ) {
-    redeem_settled_value_and_deposit<RecordingShare, CompositionShare, Currency>(
+    redeem_settled_value_and_deposit<Currency>(
         recording,
         admin_cap,
         pool,

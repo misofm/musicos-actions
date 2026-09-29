@@ -14,7 +14,7 @@ use royalty_pool::pool::{Self, RoyaltyPool};
 use sui::accumulator::AccumulatorRoot;
 use sui::balance;
 use sui::coin::Coin;
-use sui::coin_registry::Currency as ShareCurrency;
+use share::share::Issuance;
 use sui::event::emit;
 use sui::transfer::Receiving;
 
@@ -28,7 +28,7 @@ const ENoCoinsToReceive: u64 = 0;
 /// Complete provenance and initial pool snapshot for a newly created pool.
 /// The dependency's creation event remains first; this action event follows
 /// it with the composition and admin-cap identities used by the action.
-public struct CompositionRoyaltyPoolCreatedEvent<phantom CompositionShare, phantom Currency>
+public struct CompositionRoyaltyPoolCreatedEvent<phantom Currency>
     has copy, drop {
     composition_id: address,
     admin_cap_id: address,
@@ -42,7 +42,7 @@ public struct CompositionRoyaltyPoolCreatedEvent<phantom CompositionShare, phant
 
 /// Complete provenance, input coin identities, and before/after pool snapshot
 /// for a successful coin receive and deposit.
-public struct CompositionCoinsDepositedEvent<phantom CompositionShare, phantom Currency>
+public struct CompositionCoinsDepositedEvent<phantom Currency>
     has copy, drop {
     composition_id: address,
     admin_cap_id: address,
@@ -62,7 +62,7 @@ public struct CompositionCoinsDepositedEvent<phantom CompositionShare, phantom C
 
 /// Complete provenance, accumulator source amount, and before/after pool
 /// snapshot for a successful funds-accumulator redemption and deposit.
-public struct CompositionFundsDepositedEvent<phantom CompositionShare, phantom Currency>
+public struct CompositionFundsDepositedEvent<phantom Currency>
     has copy, drop {
     composition_id: address,
     admin_cap_id: address,
@@ -81,15 +81,15 @@ public struct CompositionFundsDepositedEvent<phantom CompositionShare, phantom C
 
 /// Create and return the canonical unshared pool derived from `composition`.
 /// Emits `CompositionRoyaltyPoolCreatedEvent` after successful creation.
-public fun new_pool<CompositionShare, Currency>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    share_currency: &ShareCurrency<CompositionShare>,
-): RoyaltyPool<CompositionShare, Currency> {
+public fun new_pool<Currency>(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    issuance: &Issuance,
+): RoyaltyPool<Currency> {
     let composition_id = object::id(composition).to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
-    let pool = pool::new(composition.uid_mut(admin_cap), share_currency);
-    emit(CompositionRoyaltyPoolCreatedEvent<CompositionShare, Currency> {
+    let pool = pool::new(composition.uid_mut(admin_cap), issuance);
+    emit(CompositionRoyaltyPoolCreatedEvent<Currency> {
         composition_id,
         admin_cap_id,
         pool_id: object::id(&pool).to_address(),
@@ -105,10 +105,10 @@ public fun new_pool<CompositionShare, Currency>(
 /// Receive selected coins sent to the Composition and deposit their balance
 /// into the canonical pool derived from that same Composition.
 /// Emits `CompositionCoinsDepositedEvent` after successful deposit.
-public fun receive_and_deposit<CompositionShare, Currency>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    pool: &mut RoyaltyPool<CompositionShare, Currency>,
+public fun receive_and_deposit<Currency>(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    pool: &mut RoyaltyPool<Currency>,
     coins: vector<Receiving<Coin<Currency>>>,
 ) {
     pool.assert_derived_from(object::id(composition));
@@ -126,7 +126,7 @@ public fun receive_and_deposit<CompositionShare, Currency>(
     let received = hikida::receive_coins_as_balance(uid, coins);
     let amount = received.value();
     pool.deposit(received);
-    emit(CompositionCoinsDepositedEvent<CompositionShare, Currency> {
+    emit(CompositionCoinsDepositedEvent<Currency> {
         composition_id,
         admin_cap_id,
         pool_id,
@@ -167,14 +167,14 @@ public fun receive_and_deposit<CompositionShare, Currency>(
 /// each object at most once per PTB and treat that status as retry next
 /// commit.
 /// Emits `CompositionFundsDepositedEvent` after a successful deposit.
-public fun redeem_all_and_deposit<CompositionShare, Currency>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    pool: &mut RoyaltyPool<CompositionShare, Currency>,
+public fun redeem_all_and_deposit<Currency>(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    pool: &mut RoyaltyPool<Currency>,
     root: &AccumulatorRoot,
 ) {
     let value = balance::settled_funds_value<Currency>(root, object::id(composition).to_address());
-    redeem_settled_value_and_deposit<CompositionShare, Currency>(
+    redeem_settled_value_and_deposit<Currency>(
         composition,
         admin_cap,
         pool,
@@ -185,16 +185,14 @@ public fun redeem_all_and_deposit<CompositionShare, Currency>(
 /// Redeem a previously read settled snapshot when it is positive and the pool
 /// has registered stake. The pool derivation is checked before either
 /// short-circuit so a wrong pool is rejected even when there is nothing to do.
-fun redeem_settled_value_and_deposit<CompositionShare, Currency>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    pool: &mut RoyaltyPool<CompositionShare, Currency>,
+fun redeem_settled_value_and_deposit<Currency>(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    pool: &mut RoyaltyPool<Currency>,
     value: u64,
 ) {
     pool.assert_derived_from(object::id(composition));
-    // Intentionally short-circuits before `uid_mut(admin_cap)`: Composition admin
-    // caps are matched by phantom share type only (no object-id check exists
-    // to skip), so returning early is security-neutral.
+    composition.authorize(admin_cap);
     if (value == 0 || pool.staked_shares() == 0) return;
     let composition_id = object::id(composition).to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
@@ -208,7 +206,7 @@ fun redeem_settled_value_and_deposit<CompositionShare, Currency>(
     let redeemed = hikida::redeem_balance<Currency>(uid, value);
     let amount = redeemed.value();
     pool.deposit(redeemed);
-    emit(CompositionFundsDepositedEvent<CompositionShare, Currency> {
+    emit(CompositionFundsDepositedEvent<Currency> {
         composition_id,
         admin_cap_id,
         pool_id,
@@ -225,18 +223,19 @@ fun redeem_settled_value_and_deposit<CompositionShare, Currency>(
     });
 }
 
-/// Canonical pool address for this Composition, share type, and Currency.
-public fun pool_address<CompositionShare, Currency>(
-    composition: &Composition<CompositionShare>,
+/// Canonical pool address for this Composition, issuance, and payout Currency.
+public fun pool_address<Currency>(
+    composition: &Composition,
+    issuance_id: ID,
 ): address {
-    pool::derived_address<CompositionShare, Currency>(object::id(composition))
+    pool::derived_address<Currency>(object::id(composition), issuance_id)
 }
 
 // === Test Functions ===
 
 #[test_only]
-public fun created_event_fields<CompositionShare, Currency>(
-    event: &CompositionRoyaltyPoolCreatedEvent<CompositionShare, Currency>,
+public fun created_event_fields<Currency>(
+    event: &CompositionRoyaltyPoolCreatedEvent<Currency>,
 ): (address, address, address, u64, u64, u256, u128, u128) {
     (
         event.composition_id,
@@ -251,8 +250,8 @@ public fun created_event_fields<CompositionShare, Currency>(
 }
 
 #[test_only]
-public fun coins_deposited_event_fields<CompositionShare, Currency>(
-    event: &CompositionCoinsDepositedEvent<CompositionShare, Currency>,
+public fun coins_deposited_event_fields<Currency>(
+    event: &CompositionCoinsDepositedEvent<Currency>,
 ): (address, address, address, u64, u64, u64, u64, u256, u256, u128, u128, u128, u128, u64) {
     (
         event.composition_id,
@@ -273,8 +272,8 @@ public fun coins_deposited_event_fields<CompositionShare, Currency>(
 }
 
 #[test_only]
-public fun funds_deposited_event_fields<CompositionShare, Currency>(
-    event: &CompositionFundsDepositedEvent<CompositionShare, Currency>,
+public fun funds_deposited_event_fields<Currency>(
+    event: &CompositionFundsDepositedEvent<Currency>,
 ): (address, address, address, u64, u64, u64, u64, u256, u256, u128, u128, u128, u128) {
     (
         event.composition_id,
@@ -294,13 +293,13 @@ public fun funds_deposited_event_fields<CompositionShare, Currency>(
 }
 
 #[test_only]
-public fun redeem_settled_value_and_deposit_for_testing<CompositionShare, Currency>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    pool: &mut RoyaltyPool<CompositionShare, Currency>,
+public fun redeem_settled_value_and_deposit_for_testing<Currency>(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    pool: &mut RoyaltyPool<Currency>,
     value: u64,
 ) {
-    redeem_settled_value_and_deposit<CompositionShare, Currency>(
+    redeem_settled_value_and_deposit<Currency>(
         composition,
         admin_cap,
         pool,

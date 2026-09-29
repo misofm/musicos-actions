@@ -8,8 +8,9 @@ use musicos::release::{Self, Release, ReleaseAdminCap};
 use musicos::test_helpers;
 use musicos::track;
 use release_revenue_distributor::release_revenue_distributor as action;
+use std::u64;
 use std::unit_test::{assert_eq, destroy};
-use sui::accumulator::AccumulatorRoot;
+use sui::accumulator::{Self, AccumulatorRoot};
 use sui::balance;
 use sui::coin::{Self, Coin};
 use sui::event;
@@ -22,15 +23,14 @@ const ENoCoinsToReceive: u64 = 0;
 public struct CURRENCY() has drop;
 
 fun fixture(ctx: &mut TxContext): (Release, ReleaseAdminCap, ID, ID) {
-    let composition_id = test_helpers::fake_id(ctx);
     let recording_a = test_helpers::fake_id(ctx);
     let recording_b = test_helpers::fake_id(ctx);
     let target_release_id = test_helpers::fake_id(ctx);
     let tracks = vector[
-        track::new_for_testing(composition_id, recording_a, target_release_id, 6_000),
-        track::new_for_testing(composition_id, recording_b, target_release_id, 4_000),
+        track::consent_for_testing(recording_a, target_release_id, 6_000),
+        track::consent_for_testing(recording_b, target_release_id, 4_000),
     ];
-    let (release, admin_cap) = release::new_for_testing("Release", tracks, ctx);
+    let (release, admin_cap) = release::new_for_testing(tracks, ctx);
     (release, admin_cap, recording_a, recording_b)
 }
 
@@ -41,7 +41,6 @@ fun received_coins_are_combined_split_and_fully_reported() {
     let release_id = object::id(&release);
     let release_address = release_id.to_address();
     let admin_cap_id = object::id(&admin_cap).to_address();
-    let composition_id = release.tracks()[0].composition_id().to_address();
     let coin_a = coin::from_balance(balance::create_for_testing<CURRENCY>(6_000), scenario.ctx());
     let coin_b = coin::from_balance(balance::create_for_testing<CURRENCY>(4_001), scenario.ctx());
     let coin_a_id = object::id(&coin_a);
@@ -71,16 +70,14 @@ fun received_coins_are_combined_split_and_fully_reported() {
     let track_events =
         event::events_by_type<action::ReleaseTrackRevenueDistributedEvent<CURRENCY>>();
     assert_eq!(track_events.length(), 2);
-    let (event_release_a, index_a, event_composition_a, event_recording_a, split_a, input_a, amount_a) =
+    let (event_release_a, index_a, event_recording_a, split_a, input_a, amount_a) =
         action::track_event_fields(&track_events[0]);
-    let (event_release_b, index_b, event_composition_b, event_recording_b, split_b, input_b, amount_b) =
+    let (event_release_b, index_b, event_recording_b, split_b, input_b, amount_b) =
         action::track_event_fields(&track_events[1]);
     assert_eq!(event_release_a, release_address);
     assert_eq!(event_release_b, release_address);
     assert_eq!(index_a, 0);
     assert_eq!(index_b, 1);
-    assert_eq!(event_composition_a, composition_id);
-    assert_eq!(event_composition_b, composition_id);
     assert_eq!(event_recording_a, recording_a.to_address());
     assert_eq!(event_recording_b, recording_b.to_address());
     assert_eq!(split_a, 6_000);
@@ -160,7 +157,7 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
     );
     vault.put_back(borrowed_cap, receipt);
     let (borrowed_again, second_receipt) = vault.borrow_as_admin(&vault_admin_cap);
-    assert_eq!(borrowed_again.release_id(), object::id(&release));
+    release.authorize(&borrowed_again);
     vault.put_back(borrowed_again, second_receipt);
 
     let admin_cap = vault.withdraw_vaulted_cap(&vault_admin_cap);
@@ -237,7 +234,7 @@ fun settled_value_helper_distributes_full_amount_and_later_remainder() {
 #[test]
 fun funded_accumulator_snapshot_documents_zero_vm_result() {
     let mut scenario = test_scenario::begin(@0x0);
-    sui::accumulator::create_for_testing(scenario.ctx());
+    accumulator::create_for_testing(scenario.ctx());
     let (release, admin_cap, _, _) = fixture(scenario.ctx());
     let release_address = object::id(&release).to_address();
 
@@ -269,7 +266,7 @@ fun another_releases_cap_is_rejected_before_a_funded_redemption() {
 #[test, expected_failure(abort_code = EUnauthorized, location = release)]
 fun redeem_all_rejects_foreign_cap_on_empty_settled_snapshot() {
     let mut scenario = test_scenario::begin(@0x0);
-    sui::accumulator::create_for_testing(scenario.ctx());
+    accumulator::create_for_testing(scenario.ctx());
     scenario.next_tx(@0xA);
     let (mut release, _admin_cap, _, _) = fixture(scenario.ctx());
     let (_other_release, other_admin_cap, _, _) = fixture(scenario.ctx());
@@ -306,7 +303,7 @@ fun settled_value_helper_is_a_silent_no_op_at_zero() {
 #[test]
 fun redeem_all_is_an_idempotent_no_op_without_settled_funds() {
     let mut scenario = test_scenario::begin(@0x0);
-    sui::accumulator::create_for_testing(scenario.ctx());
+    accumulator::create_for_testing(scenario.ctx());
     scenario.next_tx(@0xA);
     let (mut release, admin_cap, _, _) = fixture(scenario.ctx());
     let root = scenario.take_shared<AccumulatorRoot>();
@@ -366,7 +363,7 @@ fun overdraw_is_not_enforced_by_the_unit_vm() {
 #[test]
 fun second_redeem_all_in_the_same_tx_sees_the_vm_zero_snapshot() {
     let mut scenario = test_scenario::begin(@0x0);
-    sui::accumulator::create_for_testing(scenario.ctx());
+    accumulator::create_for_testing(scenario.ctx());
     scenario.next_tx(@0xA);
     let (mut release, admin_cap, _, _) = fixture(scenario.ctx());
     let release_address = object::id(&release).to_address();
@@ -433,7 +430,7 @@ fun same_tx_duplicate_redemptions_withdraw_twice_in_the_unit_vm() {
 fun u64_max_snapshot_distributes_without_abort() {
     let ctx = &mut tx_context::dummy();
     let (mut release, admin_cap, _, _) = fixture(ctx);
-    let max = std::u64::max_value!();
+    let max = u64::max_value!();
     action::redeem_settled_value_and_distribute_for_testing<CURRENCY>(&mut release, &admin_cap, max);
     let redeemed = event::events_by_type<action::ReleaseFundsRedeemedEvent<CURRENCY>>();
     assert_eq!(redeemed.length(), 1);
@@ -447,8 +444,8 @@ fun u64_max_snapshot_distributes_without_abort() {
     assert_eq!(input, max);
     assert_eq!(distributed + remainder, max);
     let tracks = event::events_by_type<action::ReleaseTrackRevenueDistributedEvent<CURRENCY>>();
-    let (_, _, _, _, _, _, amount_a) = action::track_event_fields(&tracks[0]);
-    let (_, _, _, _, _, _, amount_b) = action::track_event_fields(&tracks[1]);
+    let (_, _, _, _, _, amount_a) = action::track_event_fields(&tracks[0]);
+    let (_, _, _, _, _, amount_b) = action::track_event_fields(&tracks[1]);
     assert_eq!(amount_a + amount_b, distributed);
     destroy(release);
     destroy(admin_cap);
@@ -460,7 +457,7 @@ fun u64_max_snapshot_distributes_without_abort() {
 #[test]
 fun batch_with_an_empty_snapshot_release_still_distributes_the_others() {
     let mut scenario = test_scenario::begin(@0x0);
-    sui::accumulator::create_for_testing(scenario.ctx());
+    accumulator::create_for_testing(scenario.ctx());
     scenario.next_tx(@0xA);
     let (mut release_a, cap_a, _, _) = fixture(scenario.ctx());
     let (mut release_b, cap_b, _, _) = fixture(scenario.ctx());

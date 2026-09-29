@@ -5,13 +5,27 @@ Composable, custody-agnostic actions for the Miso protocol. Each top-level direc
 - `composition_royalty_pool` creates and funds canonical Composition royalty pools.
 - `recording_royalty_pool` creates and funds canonical Recording royalty pools.
 - `release_revenue_distributor` splits Release revenue across its immutable tracklist.
-- `composition_routed_stake` manages Composition-owned Recording-share stakes whose rewards are permissionlessly swept to the Composition pool.
+- `composition_routed_stake` manages Recording-share stakes whose rewards are permissionlessly swept to the Composition pool.
 
-Production APIs accept the protocol's raw admin capabilities. They contain no Vault dependency, installation state, package witness, plugin endpoint, or `entry` function. Created pools and routed stakes are returned unshared so callers can compose registration before sharing. Released principal is returned as a `Balance` so the caller controls its next safe destination.
+Production APIs accept the protocol's raw admin capabilities. They contain no Vault dependency, installation state, package witness, plugin endpoint, or `entry` function. Created pools and routed stakes are returned unshared so callers can compose registration before sharing. Released principal is returned as a native `Share` so the caller controls its next safe destination.
 
-## Capability invariant
+## Ownership and authorization
 
-Production construction issues exactly one share type, one `TreasuryCap`, and one protocol object for each Composition or Recording admin capability. Tests sometimes create multiple same-typed fixtures to exercise address-level defenses; those fixtures are intentionally stronger than the reachable production model and are not evidence that duplicate same-type production caps can exist.
+Composition and Recording are non-generic music identities. Their admin
+capabilities authorize exact object IDs. The pool actions accept a native Share
+Issuance and verify its subject ID matches the music object; pools and stakes
+bind to issuance IDs, while payout currency remains a type parameter.
+
+These actions temporarily support direct music-object issuance. Rights- or
+license-specific subjects will require a separate explicit association adapter.
+An administrator initializes ownership through the existing UID accessor, for
+example `share::initialize(registry, composition.uid_mut(admin_cap))`. This
+returns the full native Share supply and creates the Issuance for that
+Composition. The corresponding Recording flow uses `recording.uid_mut(admin_cap)`.
+MusicOS core remains independent of the Share package.
+
+Routed-stake creation receives a native Share value; it does not withdraw share
+coins from a funds accumulator. Released principal is returned as Share.
 
 ## Accumulator redemption
 

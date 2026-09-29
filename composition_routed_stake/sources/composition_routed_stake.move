@@ -8,14 +8,13 @@
 /// `routed_stake`; this package adds only protocol-specific parent checks.
 module composition_routed_stake::composition_routed_stake;
 
-use hikida::hikida;
 use musicos::composition::{Composition, CompositionAdminCap};
 use musicos::recording::Recording;
 use royalty_pool::pool::{Self, RoyaltyPool};
 use royalty_pool::stake::{Self, Stake};
 use routed_stake::routed_stake::{Self, RoutedStake};
 use std::type_name;
-use sui::balance::Balance;
+use share::share::{Issuance, Share};
 use sui::event::emit;
 
 /// The RoyaltyPool is not derived from the supplied Recording.
@@ -32,7 +31,7 @@ const ENoValueToRedeem: u64 = 3;
 /// Complete provenance and post-call snapshot for a newly created routed
 /// stake. The dependency's own creation events remain in their original
 /// order; this adapter event follows them.
-public struct CompositionRoutedStakeCreatedEvent<phantom RecordingShare, phantom CompositionShare>
+public struct CompositionRoutedStakeCreatedEvent
     has copy, drop {
     composition_id: address,
     admin_cap_id: address,
@@ -45,7 +44,7 @@ public struct CompositionRoutedStakeCreatedEvent<phantom RecordingShare, phantom
 }
 
 /// Complete registration snapshot after the wrapped stake is registered.
-public struct CompositionRoutedStakeRegisteredEvent<phantom RecordingShare, phantom CompositionShare, phantom Currency>
+public struct CompositionRoutedStakeRegisteredEvent<phantom Currency>
     has copy, drop {
     composition_id: address,
     admin_cap_id: address,
@@ -68,7 +67,7 @@ public struct CompositionRoutedStakeRegisteredEvent<phantom RecordingShare, phan
 /// Complete unregistration snapshot. `forfeited_scaled_reward` is the
 /// sub-base-unit residue removed by a successful pool unregister, in
 /// `shares * index - debt` units.
-public struct CompositionRoutedStakeUnregisteredEvent<phantom RecordingShare, phantom CompositionShare, phantom Currency>
+public struct CompositionRoutedStakeUnregisteredEvent<phantom Currency>
     has copy, drop {
     composition_id: address,
     admin_cap_id: address,
@@ -90,7 +89,7 @@ public struct CompositionRoutedStakeUnregisteredEvent<phantom RecordingShare, ph
 }
 
 /// Complete provenance for a successful removal of the wrapped principal.
-public struct CompositionRoutedStakeUnstakedEvent<phantom RecordingShare, phantom CompositionShare>
+public struct CompositionRoutedStakeUnstakedEvent
     has copy, drop {
     composition_id: address,
     admin_cap_id: address,
@@ -101,7 +100,7 @@ public struct CompositionRoutedStakeUnstakedEvent<phantom RecordingShare, phanto
 
 /// Complete provenance for a successful refill. A restake always creates a
 /// fresh wrapped stake object while retaining the routed wrapper ID.
-public struct CompositionRoutedStakeRestakedEvent<phantom RecordingShare, phantom CompositionShare>
+public struct CompositionRoutedStakeRestakedEvent
     has copy, drop {
     composition_id: address,
     admin_cap_id: address,
@@ -112,26 +111,30 @@ public struct CompositionRoutedStakeRestakedEvent<phantom RecordingShare, phanto
     registration_count: u64,
 }
 
-/// Redeem Composition-owned Recording shares and return a new unshared routed
-/// stake derived from the Composition.
-public fun create_stake<RecordingShare, CompositionShare>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    recording: &Recording<RecordingShare, CompositionShare>,
-    value: u64,
+/// Route caller-supplied Recording shares through a Composition-bound stake.
+/// Both immutable issuances must match the supplied music objects.
+public fun create_stake(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    recording: &Recording,
+    composition_issuance: &Issuance,
+    recording_issuance: &Issuance,
+    shares: Share,
     ctx: &mut TxContext,
-): RoutedStake<RecordingShare, CompositionShare> {
+): RoutedStake {
     let composition_id = object::id(composition);
     assert_recording_for_composition(recording, composition_id);
     let admin_cap_id = object::id(admin_cap).to_address();
     let recording_id = object::id(recording).to_address();
     let sender = tx_context::sender(ctx);
+    assert!(composition_issuance.subject_id() == composition_id, EStakeNotForComposition);
+    assert!(recording_issuance.subject_id() == object::id(recording), ERecordingNotForComposition);
+    assert!(shares.issuance_id() == object::id(recording_issuance), EPoolNotForRecording);
     let uid = composition.uid_mut(admin_cap);
-    assert!(value > 0, ENoValueToRedeem);
-    let shares = hikida::redeem_balance<RecordingShare>(uid, value);
-    let routed = routed_stake::new(uid, shares, ctx);
+    assert!(shares.value() > 0, ENoValueToRedeem);
+    let routed = routed_stake::new(uid, composition_issuance, shares, ctx);
     let stake_id = object::id(routed.stake()).to_address();
-    emit(CompositionRoutedStakeCreatedEvent<RecordingShare, CompositionShare> {
+    emit(CompositionRoutedStakeCreatedEvent {
         composition_id: composition_id.to_address(),
         admin_cap_id,
         recording_id,
@@ -145,17 +148,17 @@ public fun create_stake<RecordingShare, CompositionShare>(
 }
 
 /// Register the routed stake with the canonical pool derived from `recording`.
-public fun register<RecordingShare, CompositionShare, Currency>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    recording: &Recording<RecordingShare, CompositionShare>,
-    routed: &mut RoutedStake<RecordingShare, CompositionShare>,
-    pool: &mut RoyaltyPool<RecordingShare, Currency>,
+public fun register<Currency>(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    recording: &Recording,
+    routed: &mut RoutedStake,
+    pool: &mut RoyaltyPool<Currency>,
 ) {
     let composition_id = object::id(composition);
     assert_recording_for_composition(recording, composition_id);
     assert_stake_for_composition(routed, composition_id);
-    assert_pool_for_recording(pool, object::id(recording));
+    assert_pool_for_recording(pool, object::id(recording), routed.issuance_id());
     let composition_id = composition_id.to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
     let recording_id = object::id(recording).to_address();
@@ -175,7 +178,7 @@ public fun register<RecordingShare, CompositionShare, Currency>(
     let wrapped = routed.stake();
     let currency = type_name::with_defining_ids<Currency>();
     let registration = stake::get_registration(wrapped, &currency);
-    emit(CompositionRoutedStakeRegisteredEvent<RecordingShare, CompositionShare, Currency> {
+    emit(CompositionRoutedStakeRegisteredEvent<Currency> {
         composition_id,
         admin_cap_id,
         recording_id,
@@ -197,17 +200,17 @@ public fun register<RecordingShare, CompositionShare, Currency>(
 
 /// Unregister the routed stake from the canonical Recording pool after all
 /// claimable rewards have been swept.
-public fun unregister<RecordingShare, CompositionShare, Currency>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    recording: &Recording<RecordingShare, CompositionShare>,
-    routed: &mut RoutedStake<RecordingShare, CompositionShare>,
-    pool: &mut RoyaltyPool<RecordingShare, Currency>,
+public fun unregister<Currency>(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    recording: &Recording,
+    routed: &mut RoutedStake,
+    pool: &mut RoyaltyPool<Currency>,
 ) {
     let composition_id = object::id(composition);
     assert_recording_for_composition(recording, composition_id);
     assert_stake_for_composition(routed, composition_id);
-    assert_pool_for_recording(pool, object::id(recording));
+    assert_pool_for_recording(pool, object::id(recording), routed.issuance_id());
     let composition_id = composition_id.to_address();
     let admin_cap_id = object::id(admin_cap).to_address();
     let recording_id = object::id(recording).to_address();
@@ -234,7 +237,7 @@ public fun unregister<RecordingShare, CompositionShare, Currency>(
     let forfeited_scaled_reward =
         (principal as u256) * pool.cumulative_reward_per_share() - registration_debt;
     let wrapped = routed.stake();
-    emit(CompositionRoutedStakeUnregisteredEvent<RecordingShare, CompositionShare, Currency> {
+    emit(CompositionRoutedStakeUnregisteredEvent<Currency> {
         composition_id,
         admin_cap_id,
         recording_id,
@@ -256,11 +259,11 @@ public fun unregister<RecordingShare, CompositionShare, Currency>(
 }
 
 /// Remove the routed position and return its Recording-share principal.
-public fun unstake<RecordingShare, CompositionShare>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    routed: &mut RoutedStake<RecordingShare, CompositionShare>,
-): Balance<RecordingShare> {
+public fun unstake(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    routed: &mut RoutedStake,
+): Share {
     let composition_id = object::id(composition);
     assert_stake_for_composition(routed, composition_id);
     let composition_id = composition_id.to_address();
@@ -271,7 +274,7 @@ public fun unstake<RecordingShare, CompositionShare>(
         stake_id = object::id(routed.stake()).to_address();
     };
     let principal = routed.unstake(composition.uid_mut(admin_cap));
-    emit(CompositionRoutedStakeUnstakedEvent<RecordingShare, CompositionShare> {
+    emit(CompositionRoutedStakeUnstakedEvent {
         composition_id,
         admin_cap_id,
         routed_stake_id,
@@ -282,11 +285,11 @@ public fun unstake<RecordingShare, CompositionShare>(
 }
 
 /// Refill an empty routed stake with caller-supplied Recording-share principal.
-public fun restake<RecordingShare, CompositionShare>(
-    composition: &mut Composition<CompositionShare>,
-    admin_cap: &CompositionAdminCap<CompositionShare>,
-    routed: &mut RoutedStake<RecordingShare, CompositionShare>,
-    shares: Balance<RecordingShare>,
+public fun restake(
+    composition: &mut Composition,
+    admin_cap: &CompositionAdminCap,
+    routed: &mut RoutedStake,
+    shares: Share,
     ctx: &mut TxContext,
 ) {
     let composition_id = object::id(composition);
@@ -296,7 +299,7 @@ public fun restake<RecordingShare, CompositionShare>(
     let sender = tx_context::sender(ctx);
     routed.restake(composition.uid_mut(admin_cap), shares, ctx);
     let wrapped = routed.stake();
-    emit(CompositionRoutedStakeRestakedEvent<RecordingShare, CompositionShare> {
+    emit(CompositionRoutedStakeRestakedEvent {
         composition_id: composition_id.to_address(),
         admin_cap_id,
         routed_stake_id,
@@ -310,8 +313,8 @@ public fun restake<RecordingShare, CompositionShare>(
 // === Test Functions ===
 
 #[test_only]
-public fun created_event_fields<RecordingShare, CompositionShare>(
-    event: &CompositionRoutedStakeCreatedEvent<RecordingShare, CompositionShare>,
+public fun created_event_fields(
+    event: &CompositionRoutedStakeCreatedEvent,
 ): (address, address, address, address, address, address, u64, u64) {
     (
         event.composition_id,
@@ -326,8 +329,8 @@ public fun created_event_fields<RecordingShare, CompositionShare>(
 }
 
 #[test_only]
-public fun registered_event_fields<RecordingShare, CompositionShare, Currency>(
-    event: &CompositionRoutedStakeRegisteredEvent<RecordingShare, CompositionShare, Currency>,
+public fun registered_event_fields<Currency>(
+    event: &CompositionRoutedStakeRegisteredEvent<Currency>,
 ): (address, address, address, address, address, address, u64, u64, u64, u64, u64, u64, u256, u256, u128, u128) {
     (
         event.composition_id,
@@ -350,8 +353,8 @@ public fun registered_event_fields<RecordingShare, CompositionShare, Currency>(
 }
 
 #[test_only]
-public fun unregistered_event_fields<RecordingShare, CompositionShare, Currency>(
-    event: &CompositionRoutedStakeUnregisteredEvent<RecordingShare, CompositionShare, Currency>,
+public fun unregistered_event_fields<Currency>(
+    event: &CompositionRoutedStakeUnregisteredEvent<Currency>,
 ): (address, address, address, address, address, address, u64, u64, u64, u64, u64, u64, u256, u256, u128, u128, u256) {
     (
         event.composition_id,
@@ -375,8 +378,8 @@ public fun unregistered_event_fields<RecordingShare, CompositionShare, Currency>
 }
 
 #[test_only]
-public fun unstaked_event_fields<RecordingShare, CompositionShare>(
-    event: &CompositionRoutedStakeUnstakedEvent<RecordingShare, CompositionShare>,
+public fun unstaked_event_fields(
+    event: &CompositionRoutedStakeUnstakedEvent,
 ): (address, address, address, address, u64) {
     (
         event.composition_id,
@@ -388,8 +391,8 @@ public fun unstaked_event_fields<RecordingShare, CompositionShare>(
 }
 
 #[test_only]
-public fun restaked_event_fields<RecordingShare, CompositionShare>(
-    event: &CompositionRoutedStakeRestakedEvent<RecordingShare, CompositionShare>,
+public fun restaked_event_fields(
+    event: &CompositionRoutedStakeRestakedEvent,
 ): (address, address, address, address, address, u64, u64) {
     (
         event.composition_id,
@@ -402,38 +405,40 @@ public fun restaked_event_fields<RecordingShare, CompositionShare>(
     )
 }
 
-/// Canonical routed-stake address for this Composition and RecordingShare.
-public fun stake_address<RecordingShare, CompositionShare>(
-    composition: &Composition<CompositionShare>,
+/// Canonical routed-stake address for this Composition and source issuance.
+public fun stake_address(
+    composition: &Composition,
+    issuance_id: ID,
 ): address {
-    routed_stake::derived_address<RecordingShare>(object::id(composition))
+    routed_stake::derived_address(object::id(composition), issuance_id)
 }
 
-fun assert_recording_for_composition<RecordingShare, CompositionShare>(
-    recording: &Recording<RecordingShare, CompositionShare>,
+fun assert_recording_for_composition(
+    recording: &Recording,
     composition_id: ID,
 ) {
     assert!(recording.composition_id() == composition_id, ERecordingNotForComposition)
 }
 
-fun assert_pool_for_recording<RecordingShare, Currency>(
-    pool: &RoyaltyPool<RecordingShare, Currency>,
+fun assert_pool_for_recording<Currency>(
+    pool: &RoyaltyPool<Currency>,
     recording_id: ID,
+    issuance_id: ID,
 ) {
     assert!(
-        object::id(pool).to_address()
-            == pool::derived_address<RecordingShare, Currency>(recording_id),
+        pool.issuance_id() == issuance_id && object::id(pool).to_address()
+            == pool::derived_address<Currency>(recording_id, issuance_id),
         EPoolNotForRecording,
     )
 }
 
-fun assert_stake_for_composition<RecordingShare, CompositionShare>(
-    routed: &RoutedStake<RecordingShare, CompositionShare>,
+fun assert_stake_for_composition(
+    routed: &RoutedStake,
     composition_id: ID,
 ) {
     assert!(
         object::id(routed).to_address()
-            == routed_stake::derived_address<RecordingShare>(composition_id),
+            == routed_stake::derived_address(composition_id, routed.issuance_id()),
         EStakeNotForComposition,
     )
 }

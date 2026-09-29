@@ -219,7 +219,7 @@ fun vault_admin_borrow_action_put_back_and_borrow_again() {
     destroy(composition);
 }
 
-#[test, expected_failure(abort_code = derived_object::EObjectAlreadyExists, location = sui::derived_object)]
+#[test, expected_failure(abort_code = derived_object::EObjectAlreadyExists, location = derived_object)]
 fun duplicate_routed_stake_derivation_claim_aborts() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, admin_cap, recording, _recording_cap) = fixture(ctx);
@@ -449,7 +449,7 @@ fun unregister_empty_wrapper_reaches_dependency_no_stake_guard() {
     abort
 }
 
-#[test, expected_failure(abort_code = 2, location = royalty_pool::pool)]
+#[test, expected_failure(abort_code = 2, location = pool)]
 fun duplicate_currency_registration_reaches_pool_guard() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, cap, mut recording, recording_cap) = fixture(ctx);
@@ -461,7 +461,7 @@ fun duplicate_currency_registration_reaches_pool_guard() {
     abort
 }
 
-#[test, expected_failure(abort_code = 4, location = royalty_pool::pool)]
+#[test, expected_failure(abort_code = 4, location = pool)]
 fun unregister_against_other_registered_pool_reaches_pool_id_guard() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, cap, mut recording, recording_cap) = fixture(ctx);
@@ -476,7 +476,7 @@ fun unregister_against_other_registered_pool_reaches_pool_id_guard() {
     abort
 }
 
-#[test, expected_failure(abort_code = 5, location = royalty_pool::pool)]
+#[test, expected_failure(abort_code = 5, location = pool)]
 fun unregister_positive_whole_reward_reaches_last_claim_guard() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, cap, mut recording, recording_cap) = fixture(ctx);

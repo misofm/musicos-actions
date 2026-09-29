@@ -33,7 +33,7 @@ fun fixture(
     (composition, cap, recording, recording_cap)
 }
 
-#[test, expected_failure(abort_code = 4, location = royalty_pool::pool)]
+#[test, expected_failure(abort_code = 4, location = pool)]
 fun action_unregister_second_recording_pool_reaches_pool_id_guard() {
     let ctx = &mut tx_context::dummy();
     let (mut composition, cap, mut recording, recording_cap) = fixture(ctx);
