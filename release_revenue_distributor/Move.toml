@@ -7,4 +7,5 @@ authors = ["Miso Labs, Inc. (build@miso.fm)"]
 [dependencies]
 musicos = { git = "https://github.com/misofm/musicos.git", rev = "0b3eb07c9cb1af29c877b66cddfdcc9ef32fc721" }
 hikida = { git = "https://github.com/unconfirmedlabs/hikida.git", rev = "c91d6a0f536a5f1457b342a8838fc1d7ba09212e" }
+recording_license = { git = "https://github.com/misofm/musicos-extensions.git", subdir = "recording_license", rev = "96da07de42c4edb85c7f52c619c0f5d1f6d3b968" }
 vault = { git = "https://github.com/misofm/vault.git", rev = "b39cbba9688d19aa651032f25ca27951746d13f6", modes = ["test"] }

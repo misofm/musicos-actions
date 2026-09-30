@@ -18,10 +18,7 @@ Use the Sui documentation MCP server at `https://sui.mcp.kapa.ai` when available
 
 ## Project Structure
 
-- `composition_royalty_pool/` — Composition pool actions.
-- `recording_royalty_pool/` — Recording pool actions.
 - `release_revenue_distributor/` — Release revenue routing actions.
-- `composition_routed_stake/` — Composition-owned Recording-share staking actions.
 
 Each directory is an independently publishable Move 2024 package.
 

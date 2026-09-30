@@ -3,14 +3,16 @@
 
 /// Raw-cap Release revenue actions.
 ///
-/// Revenue is split from the immutable Release tracklist and sent to the
-/// corresponding Recording addresses. Callers either receive coins already
+/// Revenue is split from the immutable Release tracklist and sent to each
+/// Recording's license pool address (`recording_license`), where
+/// `pool::settle` folds it in once the pool exists and has stakes. Callers either receive coins already
 /// held by the Release or redeem its full settled accumulator snapshot; they
 /// cannot select amounts, recipients, or split values.
 module release_revenue_distributor::release_revenue_distributor;
 
 use hikida::hikida;
 use musicos::release::{Release, ReleaseAdminCap};
+use recording_license::recording_license;
 use sui::accumulator::AccumulatorRoot;
 use sui::balance::{Self, Balance};
 use sui::coin::Coin;
@@ -140,7 +142,8 @@ fun distribute<Currency>(release: &Release, mut revenue: Balance<Currency>) {
         let amount = track.split_bps().apply(total_input);
         total_distributed = total_distributed + amount;
         if (amount > 0) {
-            revenue.split(amount).send_funds(track.recording_id().to_address());
+            let license_id = recording_license::derive_address(track.recording_id()).to_id();
+            revenue.split(amount).send_funds(recording_license::derive_pool_address<Currency>(license_id));
         };
         if (total_input > 0) {
             emit(ReleaseTrackRevenueDistributedEvent<Currency> {
